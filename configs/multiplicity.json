@@ -1,0 +1,35 @@
+{
+  "eigenvalues": [
+    0.0,
+    0.0,
+    0.02
+  ],
+  "L_values": [
+    5,
+    8,
+    12,
+    16,
+    24,
+    32,
+    50,
+    70,
+    100
+  ],
+  "N_values": [
+    500
+  ],
+  "fixed_N": 500,
+  "T": 200.0,
+  "sigma": 6.0,
+  "grid_step": 0.4,
+  "alpha": 2.0,
+  "threshold": 0.1,
+  "search_bounds": [
+    -0.01,
+    0.03
+  ],
+  "noise_std": 1.0,
+  "min_overlap": 0.5,
+  "trials": 50,
+  "seed": 42
+}
