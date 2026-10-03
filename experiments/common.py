@@ -57,12 +57,13 @@ def run_trial(job):
         row.update(evaluation_mode="exact_cluster_centers", error=np.nan, peak_error=np.nan)
         for cluster, theta in enumerate(centers):
             row[f"evaluation_theta_{cluster}"] = float(theta)
-            singular = np.linalg.svd(filtered_matrix(data, theta), compute_uv=False)
+            matrix = filtered_matrix(data, theta)
+            singular = np.linalg.svd(matrix, compute_uv=False)
             for k in range(1, 5):
                 row[f"sv_{cluster}_{k}"] = singular[k - 1] / L
         return row
     if name == "observable":
-        opt = observable_target_peak(data)
+        opt = observable_target_peak(data, cfg.get("search_bounds", [-0.04, 0.04]))
         row.update(optimizer_success=bool(opt.success), optimizer_nfev=opt.nfev,
                    optimizer_message=str(opt.message))
         if not opt.success or not np.isfinite(opt.x) or not np.isfinite(opt.fun):
@@ -185,12 +186,13 @@ def main(name):
     if name == "multiplicity":
         metadata.update(evaluation_mode="exact_cluster_centers",
                         evaluation_theta=np.unique(cfg["eigenvalues"]).tolist(),
-                        field_description="sv_<cluster>_<k>: s_k/L evaluated at the exact cluster centers; peak fields unused")
+                        sampling_schemes=["independent", "shared"],
+                        field_description="sv_<cluster>_<k>: s_k/L at exact cluster centers (summary: trial mean); peak fields unused")
     if name == "observable":
         fields = FIELDS + ["optimizer_success", "optimizer_nfev", "optimizer_message"]
         metadata.update(initial_state_mode="deterministic_correlated_frame",
                         peak_search_mode="known_target_neighborhood",
-                        target_search_bounds=[-0.04, 0.04], target_search_xatol=1e-10,
+                        target_search_bounds=cfg.get("search_bounds", [-0.04, 0.04]), target_search_xatol=1e-10,
                         known_target_multiplicity=cfg["multiplicity"])
     completed = set()
     if metadata_path.exists() or raw_path.exists():
@@ -205,7 +207,7 @@ def main(name):
         metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
         with raw_path.open("w", newline="") as stream:
             csv.DictWriter(stream, fieldnames=fields).writeheader()
-    schemes = ["independent"] if name == "multiplicity" else ["independent", "shared"]
+    schemes = ["independent", "shared"]
     ns = [cfg["fixed_N"]] if name == "multiplicity" else cfg["N_values"]
     jobs = [(name, cfg, scheme, N, L, trial)
             for scheme in schemes for N in ns for L in cfg["L_values"]

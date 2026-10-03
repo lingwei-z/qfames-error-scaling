@@ -8,119 +8,152 @@ import warnings
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator, FuncFormatter, NullFormatter
 import numpy as np
 
-COLORS = ["#0072B2", "#D55E00", "#009E73"]
+COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7"]
+SCHEMES = ("independent", "shared")
+PAPER_SIZE = (3.35, 3.25)
+
+
+def style(scheme):
+    return dict(linestyle="-" if scheme == "independent" else "--",
+                marker="o" if scheme == "independent" else "s",
+                markerfacecolor=None if scheme == "independent" else "none",
+                markersize=4.5, linewidth=1.5, markeredgewidth=1.0)
+
+
+def scheme_handles(schemes=SCHEMES):
+    return [Line2D([], [], color="#333333", label=s.capitalize(), **style(s)) for s in schemes]
+
+
+def legend(fig, handles, y, ncol, x=.55):
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(x, y), ncol=ncol,
+               columnspacing=.8, handlelength=1.6, handletextpad=.4, frameon=False, fontsize=9)
 
 
 def finish(fig, path, quick):
+    # Short log ranges otherwise acquire long, densely packed minor labels.
+    for ax in fig.axes:
+        for axis, limits in [(ax.xaxis, ax.get_xlim()), (ax.yaxis, ax.get_ylim())]:
+            axis.set_minor_formatter(NullFormatter())
+            if limits[1] / limits[0] < 10:
+                axis.set_major_locator(MaxNLocator(nbins=3, integer=axis is ax.xaxis))
+                axis.set_major_formatter(FuncFormatter(lambda value, pos: f"{value:.3g}"))
     if quick:
-        fig.suptitle("Smoke test — not paper results", fontsize=10, color="#777777")
-    fig.tight_layout()
+        fig.text(.5, .01, "Smoke test: not paper results", ha="center", va="bottom", fontsize=9, color="#777777")
+    # Keep the physical publication size; tight bounding boxes change the canvas.
     for extension in ("pdf", "png"):
-        fig.savefig(path.with_suffix("." + extension), dpi=300, bbox_inches="tight")
+        fig.savefig(path.with_suffix("." + extension), dpi=300)
     plt.close(fig)
 
 
 def setup(ax, xlabel, ylabel):
     ax.set(xscale="log", yscale="log", xlabel=xlabel, ylabel=ylabel)
     ax.grid(True, which="major", alpha=0.22)
-    ax.tick_params(which="both", direction="in")
+    ax.tick_params(which="both", direction="in", labelsize=9)
 
 
-def curve(ax, rows, xkey, label, color, style, marker):
+def single_panel():
+    fig, ax = plt.subplots(figsize=PAPER_SIZE)
+    fig.subplots_adjust(left=.22, right=.97, bottom=.19, top=.73)
+    return fig, ax
+
+
+def curve(ax, rows, xkey, label, color, scheme, ykey="error_q90"):
     rows = sorted(rows, key=lambda r: r["L"])
     x = np.array([r[xkey] for r in rows])
-    y = np.array([r["error_q90"] for r in rows])
+    y = np.array([r[ykey] for r in rows])
     bad = ~np.isfinite(y) | (y <= 0)
     if np.any(bad):
-        warnings.warn(f"{label}: {bad.sum()} undefined/nonpositive quantiles; gaps shown in figure")
+        warnings.warn(f"{label}: {bad.sum()} undefined/nonpositive values; gaps shown")
     y[bad] = np.nan
-    ax.plot(x, y, color=color, linestyle=style, marker=marker, markersize=4, label=label)
-    return x, y, int(bad.sum())
+    ax.plot(x, y, color=color, label=label, **style(scheme))
+    return x, y
 
 
 def guide(ax, x, y, exponent, label):
-    """Fit the intercept in log space while keeping the requested slope fixed."""
-    good = np.flatnonzero(np.isfinite(x) & np.isfinite(y) & (y > 0) & (x > 0))
-    if len(good) >= 2:
-        log_amplitude = np.mean(np.log(y[good]) - exponent * np.log(x[good]))
-        plot_x = np.sort(x[np.isfinite(x) & (x > 0)])
-        ax.plot(plot_x, np.exp(log_amplitude + exponent * np.log(plot_x)),
-                color="#777777", ls=":", label=label)
+    """Prescribed reference slope; log-mean vertical placement, no slope regression."""
+    good = np.isfinite(x) & np.isfinite(y) & (y > 0) & (x > 0)
+    if np.count_nonzero(good) >= 2:
+        amplitude = np.mean(np.log(y[good]) - exponent * np.log(x[good]))
+        xx = np.sort(x[good])
+        ax.plot(xx, np.exp(amplitude + exponent * np.log(xx)), color="#777777", ls=":", lw=1.5)
+        ax.text(.03, .06, label + " ref.", transform=ax.transAxes, ha="left", fontsize=9,
+                bbox=dict(facecolor="white", edgecolor="none", alpha=.8, pad=1))
 
 
 def error_plots(name, rows, cfg, directory, quick):
     ylabel = (r"Eigenvalue error $\varepsilon_{0.90}$" if name == "eigenvalue"
               else r"Observable error $\varepsilon_{O,0.90}$")
-    fig, ax = plt.subplots(figsize=(6.4, 4.6))
+    fig, ax = single_panel()
     setup(ax, r"Initial states per side $L=R$", ylabel)
-    missing = 0
-    for i, scheme in enumerate(["independent", "shared"]):
+    for i, scheme in enumerate(SCHEMES):
         selected = [r for r in rows if r["scheme"] == scheme and r["N"] == cfg["fixed_N"]]
-        x, y, count = curve(ax, selected, "L", scheme.capitalize(), COLORS[i],
-                            "-" if i == 0 else "--", "o" if i == 0 else "s")
-        missing += count
-        if i == 0:
-            guide(ax, x, y, -1, r"$L^{-1}$ slope guide")
-    ax.set_title(f"Fixed N = {cfg['fixed_N']}")
-    if missing:
-        ax.text(0.02, 0.02, f"{missing} undefined quantiles (gaps); see trials.csv", transform=ax.transAxes, fontsize=8)
-    ax.legend(fontsize=9)
+        x, y = curve(ax, selected, "L", scheme.capitalize(), COLORS[i], scheme)
+        if scheme == "independent":
+            guide(ax, x, y, -1, r"$L^{-1}$")
+    ax.set_title(f"Fixed N = {cfg['fixed_N']}", fontsize=10, pad=7)
+    legend(fig, ax.get_legend_handles_labels()[0], .96, 1)
     finish(fig, directory / f"{name}_error_vs_state_count", quick)
 
-    fig, ax = plt.subplots(figsize=(6.8, 4.8))
-    setup(ax, r"Mean sampled total evolution time $T_{\mathrm{total}}$", ylabel)
-    missing = 0
+    fig, ax = single_panel()
+    setup(ax, r"Total evolution time $T_{\mathrm{total}}$", ylabel)
     for i, N in enumerate(cfg["N_values"]):
-        for scheme in ["independent", "shared"]:
+        for scheme in SCHEMES:
             selected = [r for r in rows if r["scheme"] == scheme and r["N"] == N]
-            x, y, count = curve(ax, selected, "mean_total_time", f"{scheme.capitalize()}, N={N}",
-                                COLORS[i], "-" if scheme == "independent" else "--",
-                                "o" if scheme == "independent" else "s")
-            missing += count
+            x, y = curve(ax, selected, "mean_total_time", f"{scheme}, N={N}", COLORS[i], scheme)
             if N == cfg["fixed_N"] and scheme == "independent":
-                guide(ax, x, y, -0.5, r"$T_{\mathrm{total}}^{-1/2}$ slope guide")
-    if missing:
-        ax.text(0.02, 0.02, f"{missing} undefined quantiles (gaps); see trials.csv", transform=ax.transAxes, fontsize=8)
-    ax.legend(fontsize=8)
+                guide(ax, x, y, -.5, r"$T_{\mathrm{total}}^{-1/2}$")
+    handles = [Line2D([], [], color=COLORS[i], lw=2, label=rf"$N={N}$") for i, N in enumerate(cfg["N_values"])]
+    legend(fig, handles, .995, 3, x=.52)
+    legend(fig, scheme_handles(), .90, 2)
     finish(fig, directory / f"{name}_error_vs_total_time", quick)
 
 
 def multiplicity_plot(rows, cfg, directory, quick):
-    fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.2), sharey=True)
-    rows = sorted(rows, key=lambda r: r["L"])
-    L = np.array([r["L"] for r in rows])
-    for cluster, ax in enumerate(axes):
-        setup(ax, r"Initial states per side $L=R$", r"Normalized singular value $s_k/L$")
-        for k, color in enumerate(COLORS + ["#CC79A7"], 1):
-            y = np.array([r[f"sv_{cluster}_{k}"] for r in rows])
-            ax.plot(L, y, "o-", markersize=4, color=color, label=rf"$s_{k}/L$: " + ("sampling noise" if k == 4 else
-                    "target-cluster signal" if k <= (2 if cluster == 0 else 1) else
-                    "other-cluster residual"))
-        y = np.array([r[f"sv_{cluster}_4"] for r in rows])
-        guide(ax, L, y, -0.5, r"$L^{-1/2}$ sampling-noise slope guide")
-        center = np.unique(cfg["eigenvalues"])[cluster]
-        ax.set_title("evaluated at the exact cluster centers\n" + rf"$\theta={center:g}$; multiplicity {2 if cluster == 0 else 1}")
-        ax.legend(fontsize=8)
-    failed = sum(r["failed"] for r in rows)
-    if failed:
-        axes[0].text(0.02, 0.02, f"{int(failed)} failed trials excluded from SV means", transform=axes[0].transAxes, fontsize=8)
-    finish(fig, directory / "multiplicity_singular_values_vs_state_count", quick)
+    """One identical-layout 1x2 figure per scheme; never mix scheme rows."""
+    for scheme in SCHEMES:
+        selected = [r for r in rows if r.get("scheme", "independent") == scheme]
+        if not selected:
+            warnings.warn(f"No {scheme} multiplicity data; skipping its singular-value figure.")
+            continue
+        fig, axes = plt.subplots(1, 2, figsize=(6.8, 3.3), sharey=True)
+        fig.subplots_adjust(left=.105, right=.98, bottom=.19, top=.74, wspace=.13)
+        for cluster, ax in enumerate(axes):
+            setup(ax, r"Initial states per side $L=R$", r"Normalized singular value $s_k/L$" if cluster == 0 else "")
+            for k, color in enumerate(COLORS, 1):
+                x, y = curve(ax, selected, "L", f"s{k}, {scheme}", color, scheme, f"sv_{cluster}_{k}")
+                if k == 4:
+                    guide(ax, x[x >= 24], y[x >= 24], -.5, r"$L^{-1/2}$")
+            center = np.unique(cfg["eigenvalues"])[cluster]
+            multiplicity = np.count_nonzero(np.asarray(cfg["eigenvalues"]) == center)
+            ax.set_title(rf"$\theta={center:g}$; multiplicity {multiplicity}", fontsize=10)
+        handles = [Line2D([], [], color=c, lw=2, label=rf"$s_{k}/L$") for k, c in enumerate(COLORS, 1)]
+        legend(fig, handles, 1.0, 4, x=.53)
+        legend(fig, scheme_handles([scheme]), .91, 1, x=.53)
+        finish(fig, directory / f"multiplicity_singular_values_vs_state_count_{scheme}", quick)
 
 
-def plot_run(path):
-    path = Path(path)
+def read_run(path):
     meta = json.loads((path / "metadata.json").read_text())
     with (path / "summary.csv").open(newline="") as stream:
         rows = [{k: v if k in {"scheme", "evaluation_mode"} else float(v) for k, v in row.items()}
                 for row in csv.DictReader(stream)]
+    return meta, rows
+
+
+def plot_run(path):
+    path = Path(path)
+    meta, rows = read_run(path)
     if not rows:
         raise ValueError("No completed results to plot")
     directory = path / "figures"
-    directory.mkdir(exist_ok=True)
-    plt.rcParams.update({"font.size": 10, "axes.spines.top": False,
-                         "axes.spines.right": False, "pdf.fonttype": 42})
+    directory.mkdir(parents=True, exist_ok=True)
+    plt.rcParams.update({"font.size": 9, "axes.labelsize": 10, "axes.titlesize": 10,
+                         "legend.fontsize": 9, "xtick.labelsize": 9, "ytick.labelsize": 9,
+                         "axes.spines.top": False, "axes.spines.right": False, "pdf.fonttype": 42})
     if meta["experiment"] == "multiplicity":
         if meta.get("evaluation_mode") != "exact_cluster_centers":
             raise ValueError("Legacy multiplicity results are not evaluated at the exact cluster centers; use a new run directory.")

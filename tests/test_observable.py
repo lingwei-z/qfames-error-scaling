@@ -34,6 +34,14 @@ class ObservableTests(unittest.TestCase):
         self.assertTrue(opt.success)
         self.assertAlmostEqual(opt.x,.012,places=8)
 
+    def test_configured_search_bounds(self):
+        cfg=json.loads(Path('configs/observable.json').read_text())
+        cfg['search_bounds'] = [-.02, .03]
+        with patch('qfames.core.minimize_scalar', return_value=SimpleNamespace(success=False,x=0,fun=0,nfev=0,message='test')) as optimizer:
+            run_trial(('observable',cfg,'shared',7,3,0))
+        self.assertEqual(optimizer.call_args.kwargs['bounds'], [-.02, .03])
+        self.assertEqual(optimizer.call_args.kwargs['options']['xatol'], 1e-10)
+
     def test_trial_uses_same_frames_and_estimated_theta(self):
         cfg=json.loads(Path('configs/observable.json').read_text())
         from experiments import common

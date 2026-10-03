@@ -64,11 +64,11 @@ def observable_initial_states(L, R):
     return frame(L), frame(R)
 
 
-def observable_target_peak(samples):
+def observable_target_peak(samples, search_bounds=(-0.04, 0.04)):
     """Localize the target in its known neighborhood; return optimizer diagnostics."""
     return minimize_scalar(
         lambda theta: -np.linalg.norm(filtered_matrix(samples, theta), "fro"),
-        bounds=(-0.04, 0.04), method="bounded", options={"xatol": 1e-10})
+        bounds=search_bounds, method="bounded", options={"xatol": 1e-10})
 
 
 def spectral_samples(rng, eigenvalues, phi, psi, N, T, sigma, scheme, noise_std):
