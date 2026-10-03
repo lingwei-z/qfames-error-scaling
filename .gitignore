@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-results/
+results/*
+!results/paper/
 .DS_Store
 Thumbs.db
+.vscode/
+.ipynb_checkpoints/

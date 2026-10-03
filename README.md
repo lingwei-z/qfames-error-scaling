@@ -31,6 +31,49 @@ python -m experiments.observable_scaling --quick
 
 Quick runs use three small state counts, N in {40, 80, 160}, and four trials per point. Their figures are explicitly marked as smoke tests. They check the computation and output pipeline, not asymptotic scaling or publication-quality quantiles.
 
+## Run all experiments in a notebook
+
+The notebook `run_experiments.ipynb` provides a single entry point
+for running all three experiments and inspecting their summary
+tables and figures.
+
+Install the notebook dependencies:
+
+```bash
+python -m pip install -r requirements-notebook.txt
+```
+
+Open the notebook in JupyterLab, Jupyter Notebook, or VS Code,
+and select a Python environment with the project dependencies installed.
+For example, to launch JupyterLab:
+
+```bash
+jupyter lab run_experiments.ipynb
+```
+
+Run the cells in order, or select **Run All**.
+
+- `MODE = "paper"` uses the full experiment configurations.
+- `MODE = "quick"` runs small smoke tests.
+- Each experiment cell has an independent selector: `EIGENVALUE_ACTION`,
+  `MULTIPLICITY_ACTION`, or `OBSERVABLE_ACTION`. All default to `"plot"`,
+  which reads saved summaries and metadata, regenerates figures, and displays
+  results without running simulations.
+- Set a selector to `"run"` to compute or resume that experiment, or `"view"`
+  to display its existing results without regenerating figures.
+- Missing saved data raises an error; it does not trigger computation.
+  Check `MODE` / `RUN_NAME`, or select `"run"` for that experiment.
+- `RESUME = True` reuses completed trials when settings and versions match.
+  To rerun from scratch, set a new `RUN_NAME` (for example `"paper-v2"`)
+  and select `"run"` for the desired experiments.
+
+Full experiments can be computationally expensive.
+Default paper outputs are saved under `results/paper/`.
+Avoid running multiple jobs against the same output directory.
+
+The notebook calls the same experiment modules as the command-line
+interface. Experimental settings are defined in `configs/`.
+
 ## Run the experiments
 
 ```bash
@@ -89,7 +132,7 @@ Each experiment directory also contains:
 - `trials.csv`: individual errors, estimated peaks, actual evolution costs, failure status, and relevant numerical diagnostics. For multiplicity, `sv_<cluster>_<k>` stores **s_k/L**, not s_k.
 - `summary.csv`: 90th-percentile errors, mean sampled costs, failure counts, and mean normalized singular values.
 
-Time tensors are not written to disk: their realized absolute sums and maxima are recorded per trial, and the seed plus configuration and code identify the generating computation. Keeping every L x R x N tensor would create unnecessarily large data files. Generated results are ignored by Git; archive selected paper data explicitly when preparing a release.
+Time tensors are not written to disk: their realized absolute sums and maxima are recorded per trial, and the seed plus configuration and code identify the generating computation. Keeping every L x R x N tensor would create unnecessarily large data files. Temporary runs are ignored by Git. Paper results under results/paper/ are tracked together with the corresponding code and configurations.
 
 ## Time distributions and resource accounting
 
