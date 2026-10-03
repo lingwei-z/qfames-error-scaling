@@ -69,6 +69,9 @@ Run the cells in order, or select **Run All**.
 
 Full experiments can be computationally expensive.
 Default paper outputs are saved under `results/paper/`.
+Previous multiplicity and observable results are archived in Git-ignored
+`results/old/2026-10-02/`; their complete settings and methods are recorded in
+[Archived experiment settings](docs/archived-settings-2026-10-02.md).
 Avoid running multiple jobs against the same output directory.
 
 The notebook calls the same experiment modules as the command-line
@@ -87,8 +90,8 @@ The default is one worker. Use a modest worker count: each worker holds an entir
 | Experiment | Spectrum | Fixed-N state-count figure | N values in total-time figure | Figures |
 | --- | --- | --- | --- | --- |
 | Eigenvalue | {0, 0.25} | N = 200 | 50, 200, 800 | Error vs L=R; error vs sampled total time |
-| Multiplicity | {0, 0, 0.02} | N = 500 | Not applicable | Two panels of normalized singular values at estimated peaks |
-| Observable | {0, 0, 0.1} | N = 5000 | 1000, 5000, 10000 | Error vs L=R; error vs sampled total time |
+| Multiplicity | {0, 0, 0.02} | N = 500 | Not applicable | Two panels of normalized singular values evaluated at the exact cluster centers |
+| Observable | {0, 0, 0.1} | N = 500 | 200, 500, 1000 | Error vs L=R; error vs sampled total time |
 
 The eigenvalue and observable total-time figures each contain **six measured curves**: three independent and three shared, with N fixed along each curve and L=R varied. The state-count figure reuses the corresponding fixed-N trials from the same sweep. It compares both sampling schemes.
 
@@ -114,7 +117,7 @@ python -m qfames.plotting results/paper/multiplicity
 python -m qfames.plotting results/paper/observable
 ```
 
-Equivalently, add `--plot-only` to an experiment command. This reads the saved metadata and summary, not the current configuration file. Each figure is exported as both vector PDF and 300-dpi PNG.
+Equivalently, add `--plot-only` to an experiment command. This reads the saved metadata and summary, not the current configuration file. Each figure is exported as both vector PDF and 300-dpi PNG. Slope guides keep their prescribed exponent and fit their vertical offset by minimizing squared log-space residuals over all valid points of the corresponding reference curve.
 
 Output names are:
 
@@ -129,7 +132,7 @@ results/paper/observable/figures/observable_error_vs_total_time.{pdf,png}
 Each experiment directory also contains:
 
 - `metadata.json`: resolved settings, seed, software versions, and source hashes.
-- `trials.csv`: individual errors, estimated peaks, actual evolution costs, failure status, and relevant numerical diagnostics. For multiplicity, `sv_<cluster>_<k>` stores **s_k/L**, not s_k.
+- `trials.csv`: individual errors, estimated peaks, actual evolution costs, failure status, and relevant numerical diagnostics. For multiplicity, `sv_<cluster>_<k>` stores **s_k/L evaluated at the exact cluster centers**, not s_k. `evaluation_mode=exact_cluster_centers` and `evaluation_theta_0=0`, `evaluation_theta_1=0.02` identify the evaluation locations in trials and summaries; metadata also records these locations. Legacy `peak_0` and `peak_1` stay empty; `error`, `peak_error`, and summary `error_q90` are NaN (not applicable).
 - `summary.csv`: 90th-percentile errors, mean sampled costs, failure counts, and mean normalized singular values.
 
 Time tensors are not written to disk: their realized absolute sums and maxima are recorded per trial, and the seed plus configuration and code identify the generating computation. Keeping every L x R x N tensor would create unnecessarily large data files. Temporary runs are ignored by Git. Paper results under results/paper/ are tracked together with the corresponding code and configurations.
@@ -159,14 +162,14 @@ Costs use the manuscript's unit-per-complex-datum convention. A real/imaginary c
 ## Numerical choices
 
 - **Noise:** exact correlations plus independent real and imaginary Gaussian noise, each with the configured standard deviation. This is a surrogate model, not bounded single-shot Hadamard outcomes and not a direct verification of every theorem assumption.
-- **Initial states:** experiment 1 repeats a fixed equal-weight vector to keep spectral weights fixed across L and trials. Experiments 2 and 3 use independent normalized complex Gaussian vectors with every component magnitude greater than 0.5. A feasibility check and attempt limit prevent impossible rejection loops.
-- **Truncation:** sigma is 6 rather than 4. The omitted Gaussian mass decreases from erfc(2), about 4.7e-3, to erfc(3), about 2.2e-5. The truncated kernel is still not exactly the ideal Gaussian kernel.
-- **Peak search:** all experiments search the declared spectral interval using the Frobenius norm, then refine locally. The grid step is 0.4/T, equivalent to the original code's 20q/T at q=0.02; there is no hidden factor of 20. The search intervals and number of distinct clusters are supplied for these toy problems. True eigenvalues are used for error evaluation, not as evaluation locations. This is continuous refinement of the grid algorithm, not an exact implementation of a finite-grid theorem.
-- **Multiplicity:** only the original second singular-value figure is retained. T increases from 50 to 200: for Delta=0.02, the ideal cross-cluster spectral factor decreases from exp(-1) to exp(-16). Singular values are evaluated at estimated peaks. The figure studies signal/noise separation; it does not implement a universally calibrated rank-recovery threshold.
-- **Observable:** the target lower cluster has known multiplicity 2 and projected observable eigenvalues {1,2}. The observable is the original block-supported matrix with leading block [[1.5,0.5],[0.5,1.5]]. T increases from 35 to 50 to reduce finite-filter leakage. Both numerator and denominator quadrature noise standard deviations are 0.015, following the original state-count experiment. The same settings apply to both schemes.
+- **Initial states:** experiment 1 repeats a fixed equal-weight vector to keep spectral weights fixed across L and trials. Experiment 2 uses independent normalized complex Gaussian vectors with every component magnitude greater than 0.5. A feasibility check and attempt limit prevent impossible rejection loops.
+- **Truncation:** experiments 1 and 3 use sigma = 6; experiment 2 restores sigma = 4. The omitted Gaussian mass decreases from erfc(2), about 4.7e-3, to erfc(3), about 2.2e-5. The truncated kernel is still not exactly the ideal Gaussian kernel.
+- **Peak search:** experiment 1 search the declared spectral interval using the Frobenius norm, then refine locally. The grid step is 0.4/T, equivalent to the original code's 20q/T at q=0.02; there is no hidden factor of 20. The search intervals and number of distinct clusters are supplied for these toy problems. True eigenvalues are used for error evaluation, not as evaluation locations. This is continuous refinement of the grid algorithm, not an exact implementation of a finite-grid theorem.
+- **Multiplicity:** singular values are **evaluated at the exact cluster centers**, theta = 0 and 0.02, without calling `find_peaks`. The spectrum is {0, 0, 0.02}, N = 500, T = 50, sigma = 4, and noise_std = 1; L values, independent time sampling, and random initial-state generation are unchanged. On the left, s1/L and s2/L are target-cluster signal, s3/L is other-cluster residual, and s4/L is sampling noise. On the right, s1/L is target-cluster signal, s2/L and s3/L are other-cluster residual, and s4/L is sampling noise. This is a singular-value diagnostic at known centers, not a validation of end-to-end multiplicity recovery. CLI and notebook outputs use the formal `multiplicity/` directory; previous results are archived under `results/old/2026-10-02/multiplicity/`. Legacy peak-based multiplicity data are rejected by the new plotter to avoid relabeling them as exact-center evaluations.
+- **Observable:** uses deterministic initial states with fixed cross-cluster correlation: each row is `[1, exp(2*pi*j*i/n), 1]/sqrt(3)`. Each row has unit norm; the first two columns have Gram matrix `(n/3)I`, so the target-cluster frame has condition number 1; the third column equals the first. Both sampling schemes use exactly the same frame for a given L,R, while their time-sharing patterns differ. The target multiplicity 2 is a known input. Peak localization uses the known target neighborhood [-0.04, 0.04], maximizing the Frobenius norm with bounded `minimize_scalar` and xatol=1e-10. There is no global scan or second-peak requirement. The estimated theta_star (saved as `peak_0`) is used in both denominator and observable numerator; `peak_1` is unused, and `peak_error` measures the target location error. Optimizer success, evaluation count, and message are retained in the trial CSV; failures remain in error quantiles. This is an observable error scaling experiment, not end-to-end recovery of a completely unknown spectrum. The spectrum is {0,0,0.1}, the block-supported observable is [[1.5,0.5,0],[0.5,1.5,0],[0,0,0]], and targets are {1,2}. T=50, sigma=6, and both noise standard deviations are 0.015. N is 200, 500, or 1000, with fixed_N=500 and 100 trials per point for the formal run. A separate 3-trial check precedes the formal run; seed 42 and all data points are retained. Outputs use the formal `observable/` directory; previous results are archived under `results/old/2026-10-02/observable/`. Local search reduces classical computation only: costs still include all sampled spectral and two-leg observable evolution times, with LR weighting for shared times.
 - **Generalized eigenvalues:** the projected problem is solved directly, without an explicit inverse. Errors use bottleneck matching in the complex plane, retaining imaginary parts rather than silently dropping them. `max_imaginary` and `projected_condition` are saved for diagnosis. This can produce larger reported errors than the old real-part-only metric.
-- **Failures:** failed peak searches or singular projected denominators receive infinite error. Quantiles use NumPy's `inverted_cdf` definition and include failures. Infinite quantiles appear as gaps with a warning, not fabricated finite points. Singular-value means necessarily use successful peak searches, with failures reported. A peak-search failure stops before observable acquisition, so its recorded time is the actual partial cost.
-- **Reference lines:** dotted curves are slope guides anchored at the first finite independent point (or first noise singular-value point). They are not fitted estimates or claimed convergence rates. All measured points are shown; no early or late points are discarded to improve agreement.
+- **Failures:** failed peak searches or singular projected denominators receive infinite error. Quantiles use NumPy's `inverted_cdf` definition and include failures. Infinite quantiles appear as gaps with a warning, not fabricated finite points. Multiplicity singular-value means include all trials and do not depend on peak-search success. A peak-search failure stops before observable acquisition, so its recorded time is the actual partial cost.
+- **Reference lines:** dotted curves are slope guides anchored at the first finite independent point (for multiplicity, the last finite s4/L point in each panel). The multiplicity L^(-1/2) guide refers only to sampling noise and never uses s3/L or s2/L to set its height. They are not fitted estimates or claimed convergence rates. All measured points are shown; no early or late points are discarded to improve agreement.
 
 At fixed T, varying L changes the statistical budget. The cost guide is therefore T_total^(-1/2), **not** a numerical test of Heisenberg scaling obtained by varying T. Shared-sampling error need not be flat for every finite-size toy model: independent measurement noise still averages across entries, and the block-supported observable may suppress some shared-time fluctuations. The code does not force saturation or curve collapse. Publication claims should be based on the full runs and their diagnostics.
 
@@ -183,6 +186,8 @@ experiments/
   observable_scaling.py            # Experiment 3
 configs/                          # Editable experiment settings
 tests/test_numerics.py             # Numerical identity and cost checks
+tests/test_multiplicity.py         # Exact-center evaluation and plot regression checks
+tests/test_observable.py           # Observable state, peak, and trial regression checks
 requirements.txt
 ```
 
@@ -191,3 +196,25 @@ This refactors `QFAMES.py`, `Experiment_3.py`, `Experiment_4.py`, and `Experimen
 ## Citation and release
 
 Use the manuscript's final bibliographic entry when available. The title and authors above identify the associated work; no publication venue or preprint identifier is assumed here. Before the public release, select a code license with the coauthor and add its LICENSE file. This bundle intentionally does not assign a license on the authors' behalf.
+
+## Regression tests
+
+The experiment-specific tests complement the numerical checks in `tests/test_numerics.py`:
+
+- `tests/test_multiplicity.py` checks evaluation at the exact cluster centers without peak search, singular-value normalization, retention of all plotted state counts, and the fixed-slope log-space fit of the sampling-noise guide to all s4/L points.
+- `tests/test_observable.py` checks deterministic initial-state properties, shared and independent time-sampling shapes and costs, local peak localization, reuse of the same states across schemes, use of the estimated peak in both the denominator and numerator, and preservation of spectral cost when localization fails.
+
+Run all tests from the repository root:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+To run either experiment-specific file separately:
+
+```bash
+python -m unittest discover -s tests -p "test_multiplicity.py" -v
+python -m unittest discover -s tests -p "test_observable.py" -v
+```
+
+These small regression checks do not run the full experiment sweeps or validate asymptotic scaling.

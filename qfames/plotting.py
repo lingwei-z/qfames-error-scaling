@@ -41,10 +41,13 @@ def curve(ax, rows, xkey, label, color, style, marker):
 
 
 def guide(ax, x, y, exponent, label):
-    good = np.flatnonzero(np.isfinite(y) & (y > 0) & (x > 0))
+    """Fit the intercept in log space while keeping the requested slope fixed."""
+    good = np.flatnonzero(np.isfinite(x) & np.isfinite(y) & (y > 0) & (x > 0))
     if len(good) >= 2:
-        k = good[0]
-        ax.plot(x, y[k] * (x / x[k]) ** exponent, color="#777777", ls=":", label=label)
+        log_amplitude = np.mean(np.log(y[good]) - exponent * np.log(x[good]))
+        plot_x = np.sort(x[np.isfinite(x) & (x > 0)])
+        ax.plot(plot_x, np.exp(log_amplitude + exponent * np.log(plot_x)),
+                color="#777777", ls=":", label=label)
 
 
 def error_plots(name, rows, cfg, directory, quick):
@@ -92,13 +95,13 @@ def multiplicity_plot(rows, cfg, directory, quick):
         setup(ax, r"Initial states per side $L=R$", r"Normalized singular value $s_k/L$")
         for k, color in enumerate(COLORS + ["#CC79A7"], 1):
             y = np.array([r[f"sv_{cluster}_{k}"] for r in rows])
-            ax.plot(L, y, "o-", markersize=4, color=color, label=rf"$s_{k}/L$")
-        # Use the first noise singular value, not an arbitrarily selected tail value.
-        noise_index = 3 if cluster == 0 else 2
-        y = np.array([r[f"sv_{cluster}_{noise_index}"] for r in rows])
-        guide(ax, L, y, -0.5, r"$L^{-1/2}$ slope guide")
+            ax.plot(L, y, "o-", markersize=4, color=color, label=rf"$s_{k}/L$: " + ("sampling noise" if k == 4 else
+                    "target-cluster signal" if k <= (2 if cluster == 0 else 1) else
+                    "other-cluster residual"))
+        y = np.array([r[f"sv_{cluster}_4"] for r in rows])
+        guide(ax, L, y, -0.5, r"$L^{-1/2}$ sampling-noise slope guide")
         center = np.unique(cfg["eigenvalues"])[cluster]
-        ax.set_title(rf"Peak near $\lambda={center:g}$; multiplicity {2 if cluster == 0 else 1}")
+        ax.set_title("evaluated at the exact cluster centers\n" + rf"$\theta={center:g}$; multiplicity {2 if cluster == 0 else 1}")
         ax.legend(fontsize=8)
     failed = sum(r["failed"] for r in rows)
     if failed:
@@ -110,7 +113,7 @@ def plot_run(path):
     path = Path(path)
     meta = json.loads((path / "metadata.json").read_text())
     with (path / "summary.csv").open(newline="") as stream:
-        rows = [{k: v if k == "scheme" else float(v) for k, v in row.items()}
+        rows = [{k: v if k in {"scheme", "evaluation_mode"} else float(v) for k, v in row.items()}
                 for row in csv.DictReader(stream)]
     if not rows:
         raise ValueError("No completed results to plot")
@@ -119,6 +122,8 @@ def plot_run(path):
     plt.rcParams.update({"font.size": 10, "axes.spines.top": False,
                          "axes.spines.right": False, "pdf.fonttype": 42})
     if meta["experiment"] == "multiplicity":
+        if meta.get("evaluation_mode") != "exact_cluster_centers":
+            raise ValueError("Legacy multiplicity results are not evaluated at the exact cluster centers; use a new run directory.")
         multiplicity_plot(rows, meta["config"], directory, meta["quick"])
     else:
         error_plots(meta["experiment"], rows, meta["config"], directory, meta["quick"])

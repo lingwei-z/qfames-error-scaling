@@ -8,3 +8,6 @@ results/*
 Thumbs.db
 .vscode/
 .ipynb_checkpoints/
+
+# Archived experimental outputs
+/results/old/

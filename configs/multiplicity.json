@@ -19,8 +19,8 @@
     500
   ],
   "fixed_N": 500,
-  "T": 200.0,
-  "sigma": 6.0,
+  "T": 50.0,
+  "sigma": 4.0,
   "grid_step": 0.4,
   "alpha": 2.0,
   "threshold": 0.1,

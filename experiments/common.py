@@ -17,7 +17,7 @@ import numpy as np
 import scipy
 from qfames.core import (initial_states, spectral_samples, filtered_matrix,
                          find_peaks, observable_filtered, observable_eigenvalues,
-                         matching_error)
+                         matching_error, observable_initial_states, observable_target_peak)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENT_IDS = {"eigenvalue": 1, "multiplicity": 2, "observable": 3}
@@ -27,6 +27,7 @@ BASE_FIELDS = ["scheme", "N", "L", "trial", "status", "error", "peak_error",
                "message"]
 SV_FIELDS = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 5)]
 FIELDS = BASE_FIELDS + SV_FIELDS
+EVALUATION_FIELDS = ["evaluation_mode", "evaluation_theta_0", "evaluation_theta_1"]
 
 
 def run_trial(job):
@@ -42,30 +43,44 @@ def run_trial(job):
                total_time=0.0, max_time=0.0)
     spectrum = np.array(cfg["eigenvalues"])
     centers = np.unique(spectrum)
-    phi, psi = initial_states(state_rng, len(spectrum), L, L,
-                              replicated=name == "eigenvalue",
-                              min_overlap=cfg["min_overlap"])
+    if name == "observable":
+        phi, psi = observable_initial_states(L, L)
+    else:
+        phi, psi = initial_states(state_rng, len(spectrum), L, L,
+                                  replicated=name == "eigenvalue",
+                                  min_overlap=cfg["min_overlap"])
     data = spectral_samples(rng, spectrum, phi, psi, N, cfg["T"], cfg["sigma"],
                             scheme, cfg["noise_std"])
     row.update(spectral_time=data.total_time, total_time=data.total_time,
                max_time=data.max_time)
-    peaks = find_peaks(data, cfg["T"], len(centers), cfg["search_bounds"],
-                       cfg["grid_step"], cfg["alpha"], cfg["threshold"])
-    if len(peaks) != len(centers):
-        row.update(status="peak_failure", message=f"Found {len(peaks)} of {len(centers)} peaks")
-        return row
-    row.update(peak_0=peaks[0], peak_1=peaks[1], peak_error=matching_error(peaks, centers))
-    if name == "eigenvalue":
-        row["error"] = row["peak_error"]
-    elif name == "multiplicity":
-        for cluster, peak in enumerate(peaks):
-            singular = np.linalg.svd(filtered_matrix(data, peak), compute_uv=False)
+    if name == "multiplicity":
+        row.update(evaluation_mode="exact_cluster_centers", error=np.nan, peak_error=np.nan)
+        for cluster, theta in enumerate(centers):
+            row[f"evaluation_theta_{cluster}"] = float(theta)
+            singular = np.linalg.svd(filtered_matrix(data, theta), compute_uv=False)
             for k in range(1, 5):
                 row[f"sv_{cluster}_{k}"] = singular[k - 1] / L
+        return row
+    if name == "observable":
+        opt = observable_target_peak(data)
+        row.update(optimizer_success=bool(opt.success), optimizer_nfev=opt.nfev,
+                   optimizer_message=str(opt.message))
+        if not opt.success or not np.isfinite(opt.x) or not np.isfinite(opt.fun):
+            row.update(status="peak_failure", message=str(opt.message))
+            return row
+        theta = float(opt.x)
+        row.update(peak_0=theta, peak_error=abs(theta - centers[0]))
+    else:
+        peaks = find_peaks(data, cfg["T"], len(centers), cfg["search_bounds"],
+                           cfg["grid_step"], cfg["alpha"], cfg["threshold"])
+        if len(peaks) != len(centers):
+            row.update(status="peak_failure", message=f"Found {len(peaks)} of {len(centers)} peaks")
+            return row
+        row.update(peak_0=peaks[0], peak_1=peaks[1], peak_error=matching_error(peaks, centers))
+    if name == "eigenvalue":
         row["error"] = row["peak_error"]
     else:
         # The target is the lower cluster, whose multiplicity is assumed known.
-        theta = peaks[0]
         base = filtered_matrix(data, theta)
         del data
         observable = np.array(cfg["observable"], dtype=complex)
@@ -106,6 +121,8 @@ def summarize(raw_path, output):
         for field in SV_FIELDS:
             vals = [float(r[field]) for r in group if r[field] != ""]
             item[field] = float(np.mean(vals)) if vals else np.nan
+        if group[0].get("evaluation_mode") == "exact_cluster_centers":
+            item.update({field: group[0][field] for field in EVALUATION_FIELDS})
         summaries.append(item)
     if summaries:
         with output.open("w", newline="") as stream:
@@ -164,6 +181,17 @@ def main(name):
                     python=platform.python_version(), numpy=np.__version__, scipy=scipy.__version__,
                     cost_convention="absolute sampled evolution time; unit per complex datum",
                     workers=args.workers)
+    fields = FIELDS + EVALUATION_FIELDS if name == "multiplicity" else FIELDS
+    if name == "multiplicity":
+        metadata.update(evaluation_mode="exact_cluster_centers",
+                        evaluation_theta=np.unique(cfg["eigenvalues"]).tolist(),
+                        field_description="sv_<cluster>_<k>: s_k/L evaluated at the exact cluster centers; peak fields unused")
+    if name == "observable":
+        fields = FIELDS + ["optimizer_success", "optimizer_nfev", "optimizer_message"]
+        metadata.update(initial_state_mode="deterministic_correlated_frame",
+                        peak_search_mode="known_target_neighborhood",
+                        target_search_bounds=[-0.04, 0.04], target_search_xatol=1e-10,
+                        known_target_multiplicity=cfg["multiplicity"])
     completed = set()
     if metadata_path.exists() or raw_path.exists():
         if not args.resume or not metadata_path.exists() or not raw_path.exists():
@@ -176,7 +204,7 @@ def main(name):
     else:
         metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
         with raw_path.open("w", newline="") as stream:
-            csv.DictWriter(stream, fieldnames=FIELDS).writeheader()
+            csv.DictWriter(stream, fieldnames=fields).writeheader()
     schemes = ["independent"] if name == "multiplicity" else ["independent", "shared"]
     ns = [cfg["fixed_N"]] if name == "multiplicity" else cfg["N_values"]
     jobs = [(name, cfg, scheme, N, L, trial)
@@ -187,7 +215,7 @@ def main(name):
     try:
         results = pool.map(run_trial, jobs, chunksize=1) if pool else map(run_trial, jobs)
         with raw_path.open("a", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=FIELDS)
+            writer = csv.DictWriter(stream, fieldnames=fields)
             for index, row in enumerate(results, 1):
                 writer.writerow(row)
                 stream.flush()

@@ -56,6 +56,21 @@ def initial_states(rng, dimension, L, R, replicated=False, min_overlap=0.5):
     return np.asarray(rows[:L]), np.asarray(rows[L:])
 
 
+def observable_initial_states(L, R):
+    """Deterministic frames with orthogonal target columns and fixed cross-cluster correlation."""
+    def frame(n):
+        phase = np.exp(2j * np.pi * np.arange(n) / n)
+        return np.column_stack([np.ones(n), phase, np.ones(n)]) / np.sqrt(3)
+    return frame(L), frame(R)
+
+
+def observable_target_peak(samples):
+    """Localize the target in its known neighborhood; return optimizer diagnostics."""
+    return minimize_scalar(
+        lambda theta: -np.linalg.norm(filtered_matrix(samples, theta), "fro"),
+        bounds=(-0.04, 0.04), method="bounded", options={"xatol": 1e-10})
+
+
 def spectral_samples(rng, eigenvalues, phi, psi, N, T, sigma, scheme, noise_std):
     L, R = len(phi), len(psi)
     if scheme not in ("independent", "shared") or N < 2 or noise_std < 0:
