@@ -4,6 +4,11 @@
     "eigenvalues": [
       0.0,
       0.0,
+      0.02,
+      0.1
+    ],
+    "evaluation_centers": [
+      0.0,
       0.02
     ],
     "L_values": [
@@ -30,18 +35,18 @@
       -0.01,
       0.03
     ],
-    "noise_std": 1.0,
-    "min_overlap": 0.5,
+    "noise_std": 0.1,
+    "min_overlap": 0.4,
     "trials": 50,
     "seed": 42
   },
   "quick": false,
   "code_sha256": {
     "qfames\\__init__.py": "16dab917644542f6268033fe17b129b1088f695e5d42d7e2761c76f085e97690",
-    "qfames\\core.py": "b866d970878930e58a87675d583ec3cea351e5d1471ccecbf84ba3936a4f165a",
-    "qfames\\plotting.py": "c52078585a40d4f00469858389e3b6025d464a3cb0792d4d770644ffe075680d",
+    "qfames\\core.py": "bac19a6d73bc471b23f8b988a7ca121a000b23efce1ec55da0eee5897a8c9dda",
+    "qfames\\plotting.py": "4261386daa7a3cdd5748a55c968d4d7aef260be99aa1395a6a188bee9b33d9f6",
     "experiments\\__init__.py": "3dab48845ee0c7707334480eaf7ff37b3686c07be94de94e3eb0344606cf98a2",
-    "experiments\\common.py": "bafe2d81ba441c21118f2910f274d345c42485aaa6e2c24b015cf4606573ba22",
+    "experiments\\common.py": "13cbfbf90b5c504af03554874a7f96b8acca5d418a0d60bc0d63775409f44110",
     "experiments\\eigenvalue_scaling.py": "83f94c4ace6fe152bc24fa09b4f33240f95c879974671357eb6012f9d5fbe2d8",
     "experiments\\multiplicity_scaling.py": "ec8ee0eef75e75451dafe34b07efe17b3b694997bf700afd64f0fc27ccde00e7",
     "experiments\\observable_scaling.py": "fd6a787b92a957d0dce5e75cbaaaa3e89ba29a00f183a586344c0d18b0ee53fa"
@@ -60,7 +65,5 @@
     "independent",
     "shared"
   ],
-  "diagnostic": "statistical_spectral_error_<cluster>: ||G(theta)-F_trunc(theta)||_2/L conditional on trial frames; summary suffix _q90 uses inverted_cdf",
-  "filter_expectation": "deterministic cosine-weighted quadrature on u=t/T, truncated to [-sigma,sigma]",
   "field_description": "sv_<cluster>_<k>: s_k/L at exact cluster centers (summary: trial mean); peak fields unused"
 }

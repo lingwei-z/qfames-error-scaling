@@ -55,7 +55,7 @@ def run_trial(job):
                max_time=data.max_time)
     if name == "multiplicity":
         row.update(evaluation_mode="exact_cluster_centers", error=np.nan, peak_error=np.nan)
-        for cluster, theta in enumerate(centers):
+        for cluster, theta in enumerate(cfg["evaluation_centers"]):
             row[f"evaluation_theta_{cluster}"] = float(theta)
             matrix = filtered_matrix(data, theta)
             singular = np.linalg.svd(matrix, compute_uv=False)
@@ -185,7 +185,7 @@ def main(name):
     fields = FIELDS + EVALUATION_FIELDS if name == "multiplicity" else FIELDS
     if name == "multiplicity":
         metadata.update(evaluation_mode="exact_cluster_centers",
-                        evaluation_theta=np.unique(cfg["eigenvalues"]).tolist(),
+                        evaluation_theta=list(cfg["evaluation_centers"]),
                         sampling_schemes=["independent", "shared"],
                         field_description="sv_<cluster>_<k>: s_k/L at exact cluster centers (summary: trial mean); peak fields unused")
     if name == "observable":

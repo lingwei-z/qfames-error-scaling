@@ -79,9 +79,12 @@ def guide(ax, x, y, exponent, label):
     if np.count_nonzero(good) >= 2:
         amplitude = np.mean(np.log(y[good]) - exponent * np.log(x[good]))
         xx = np.sort(x[good])
-        ax.plot(xx, np.exp(amplitude + exponent * np.log(xx)), color="#777777", ls=":", lw=1.5)
-        ax.text(.03, .06, label + " ref.", transform=ax.transAxes, ha="left", fontsize=9,
-                bbox=dict(facecolor="white", edgecolor="none", alpha=.8, pad=1))
+        reference, = ax.plot(xx, np.exp(amplitude + exponent * np.log(xx)),
+                             color="#777777", ls=":", lw=1.5)
+        ax.legend(handles=[reference], labels=[label + " ref."], markerfirst=False,
+                  loc="lower left", bbox_to_anchor=(.03, .06), borderaxespad=0,
+                  handlelength=2.4, handletextpad=.5, fontsize=9,
+                  facecolor="white", edgecolor="none", framealpha=.8, borderpad=.2)
 
 
 def error_plots(name, rows, cfg, directory, quick):
@@ -125,9 +128,10 @@ def multiplicity_plot(rows, cfg, directory, quick):
             setup(ax, r"Initial states per side $L=R$", r"Normalized singular value $s_k/L$" if cluster == 0 else "")
             for k, color in enumerate(COLORS, 1):
                 x, y = curve(ax, selected, "L", f"s{k}, {scheme}", color, scheme, f"sv_{cluster}_{k}")
-                if k == 4:
+                if k == 4 and scheme == "independent":
                     guide(ax, x[x >= 24], y[x >= 24], -.5, r"$L^{-1/2}$")
-            center = np.unique(cfg["eigenvalues"])[cluster]
+            # Older saved runs predate explicit evaluation centers.
+            center = cfg.get("evaluation_centers", np.unique(cfg["eigenvalues"]))[cluster]
             multiplicity = np.count_nonzero(np.asarray(cfg["eigenvalues"]) == center)
             ax.set_title(rf"$\theta={center:g}$; multiplicity {multiplicity}", fontsize=10)
         handles = [Line2D([], [], color=c, lw=2, label=rf"$s_{k}/L$") for k, c in enumerate(COLORS, 1)]

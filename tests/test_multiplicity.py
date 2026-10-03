@@ -60,6 +60,10 @@ class MultiplicityTests(unittest.TestCase):
                         np.testing.assert_array_equal(line.get_xdata(), [5,12,24,50])
                         k = int(line.get_label()[1])
                         np.testing.assert_allclose(line.get_ydata(), factor*(5-k)/line.get_xdata())
+                    if scheme == 'shared':
+                        self.assertEqual(len(ax.lines), 4)
+                        self.assertIsNone(ax.get_legend())
+                        continue
                     ref = next(line for line in ax.lines if line.get_linestyle() == ':')
                     x, y = ref.get_data()
                     np.testing.assert_array_equal(x, [24,50])
