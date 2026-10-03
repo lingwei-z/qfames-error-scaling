@@ -1,5 +1,6 @@
 """Regression checks for exact-center multiplicity evaluation."""
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -7,10 +8,25 @@ from unittest.mock import patch
 import numpy as np
 from experiments.common import run_trial
 from qfames.core import (Samples, initial_states, spectral_samples, filtered_matrix)
-from qfames.plotting import multiplicity_plot
+from qfames.plotting import multiplicity_plot, multiplicity_standard_errors
 
 
 class MultiplicityTests(unittest.TestCase):
+    def test_saved_trial_sem_is_not_standard_deviation(self):
+        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 5)]
+        csv_text = 'scheme,N,L,' + ','.join(fields) + '\n'
+        for scheme, values in [('independent', [1, 3]), ('shared', [2, 4, 6, 8])]:
+            for value in values:
+                csv_text += f'{scheme},500,24,' + ','.join([str(value)] * 8) + '\n'
+        rows = [dict(scheme=s, N=500, L=24, **{f: 123. for f in fields})
+                for s in ['independent', 'shared']]
+        with patch.object(Path, 'open', return_value=io.StringIO(csv_text)):
+            multiplicity_standard_errors(Path('.'), rows)
+        for row, expected in zip(rows, [1., np.sqrt(5/3)]):
+            for field in fields:
+                self.assertAlmostEqual(row[field + '_sem'], expected)
+                self.assertEqual(row[field], 123.)
+
     def test_exact_centers_without_peak_search(self):
         cfg = json.loads(Path('configs/multiplicity.json').read_text())
         matrix = np.diag([8., 6., 4., 2.]).astype(complex)
@@ -53,6 +69,7 @@ class MultiplicityTests(unittest.TestCase):
                 self.assertEqual(len(fig.axes), 2)
                 factor = 1 if scheme == 'independent' else 10
                 for ax in fig.axes:
+                    np.testing.assert_allclose(ax.get_ylim(), [2e-3, .4])
                     data = [line for line in ax.lines if line.get_marker() in ('o', 's')]
                     self.assertEqual(len(data), 4)
                     for line in data:

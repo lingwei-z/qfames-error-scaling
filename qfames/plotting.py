@@ -118,7 +118,8 @@ def error_plots(name, rows, cfg, directory, quick):
 def multiplicity_plot(rows, cfg, directory, quick):
     """One identical-layout 1x2 figure per scheme; never mix scheme rows."""
     for scheme in SCHEMES:
-        selected = [r for r in rows if r.get("scheme", "independent") == scheme]
+        selected = sorted([r for r in rows if r.get("scheme", "independent") == scheme],
+                          key=lambda r: r["L"])
         if not selected:
             warnings.warn(f"No {scheme} multiplicity data; skipping its singular-value figure.")
             continue
@@ -126,8 +127,15 @@ def multiplicity_plot(rows, cfg, directory, quick):
         fig.subplots_adjust(left=.105, right=.98, bottom=.19, top=.74, wspace=.13)
         for cluster, ax in enumerate(axes):
             setup(ax, r"Initial states per side $L=R$", r"Normalized singular value $s_k/L$" if cluster == 0 else "")
+            ax.set_ylim(2e-3, .4)
             for k, color in enumerate(COLORS, 1):
                 x, y = curve(ax, selected, "L", f"s{k}, {scheme}", color, scheme, f"sv_{cluster}_{k}")
+                if k == 4:
+                    sem = np.array([r.get(f"sv_{cluster}_{k}_sem", np.nan) for r in selected])
+                    valid = np.isfinite(y) & np.isfinite(sem)
+                    if np.any(valid):
+                        ax.errorbar(x[valid], y[valid], yerr=sem[valid], fmt="none",
+                                    ecolor=color, elinewidth=.7, capsize=1.5, capthick=.7)
                 if k == 4 and scheme == "independent":
                     guide(ax, x[x >= 24], y[x >= 24], -.5, r"$L^{-1/2}$")
             # Older saved runs predate explicit evaluation centers.
@@ -138,6 +146,24 @@ def multiplicity_plot(rows, cfg, directory, quick):
         legend(fig, handles, 1.0, 4, x=.53)
         legend(fig, scheme_handles([scheme]), .91, 1, x=.53)
         finish(fig, directory / f"multiplicity_singular_values_vs_state_count_{scheme}", quick)
+
+
+def multiplicity_standard_errors(path, rows):
+    """Attach sample SD / sqrt(n) from saved trials; preserve summary means."""
+    fields = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 5)]
+    groups = {}
+    with (path / "trials.csv").open(newline="") as stream:
+        for trial in csv.DictReader(stream):
+            key = (trial["scheme"], float(trial["N"]), float(trial["L"]))
+            groups.setdefault(key, []).append([float(trial[field]) for field in fields])
+    for row in rows:
+        key = (row["scheme"], row["N"], row["L"])
+        values = np.asarray(groups.get(key, []), dtype=float)
+        for i, field in enumerate(fields):
+            # Do not silently drop invalid trials or imply zero uncertainty for n=1.
+            row[field + "_sem"] = (np.std(values[:, i], ddof=1) / np.sqrt(len(values))
+                                   if len(values) >= 2 and np.all(np.isfinite(values[:, i]))
+                                   else np.nan)
 
 
 def read_run(path):
@@ -161,6 +187,7 @@ def plot_run(path):
     if meta["experiment"] == "multiplicity":
         if meta.get("evaluation_mode") != "exact_cluster_centers":
             raise ValueError("Legacy multiplicity results are not evaluated at the exact cluster centers; use a new run directory.")
+        multiplicity_standard_errors(path, rows)
         multiplicity_plot(rows, meta["config"], directory, meta["quick"])
     else:
         error_plots(meta["experiment"], rows, meta["config"], directory, meta["quick"])

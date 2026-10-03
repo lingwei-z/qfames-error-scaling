@@ -63,7 +63,9 @@ Run the cells in order, or select **Run All**.
   to display its existing results without regenerating figures.
 - Missing saved data is reported and skipped; it does not trigger computation.
   `OUTPUTS` selects each experiment directory independently. Multiplicity defaults
-  to `results/paper/multiplicity/`; explicitly select `"run"` for it.
+  to `results/paper/multiplicity/`; keep `"plot"` to replot saved data.
+  If its saved configuration differs, the notebook reports
+  **Existing results use outdated settings; rerun multiplicity** and skips those results.
 - `RESUME = True` reuses completed trials when settings and versions match.
   To rerun from scratch, set a new `RUN_NAME` (for example `"paper-v2"`)
   and select `"run"` for the desired experiments.
@@ -91,7 +93,7 @@ The default is one worker. Use a modest worker count: each worker holds an entir
 | Experiment | Spectrum | Fixed-N state-count figure | N values in total-time figure | Figures |
 | --- | --- | --- | --- | --- |
 | Eigenvalue | {0, 0.25} | N = 200 | 50, 200, 800 | Error vs L=R; error vs sampled total time |
-| Multiplicity | {0, 0, 0.02} | N = 500 | Not applicable | Separate independent/shared 1x2 singular-value figures at exact centers |
+| Multiplicity | {0, 0, 0.02, 0.10} | N = 500 | Not applicable | Separate independent/shared 1x2 singular-value figures at exact centers |
 | Observable | {0, 0, 0.1} | N = 500 | 200, 500, 1000 | Error vs L=R; error vs sampled total time |
 
 The eigenvalue and observable total-time figures each contain **six measured curves**: three independent and three shared, with N fixed along each curve and L=R varied. The state-count figure reuses the corresponding fixed-N trials from the same sweep. It compares both sampling schemes.
@@ -110,6 +112,27 @@ python -m experiments.observable_scaling --workers 2 --resume
 
 Resuming checks the resolved configuration, source hashes, and NumPy/SciPy versions. Trial seeds depend on experiment, N, L, trial index, and sampling scheme, so changing the worker count does not change numerical results. States are paired between the schemes at each (N,L,trial); time and noise streams are separate. Changing chunk size changes the observable RNG draw order and therefore requires a separate run.
 
+### Rerun only multiplicity at the original path
+
+Stop any job using this directory first. In PowerShell, archive the entire old
+multiplicity directory, then run only multiplicity without `--resume` or `--quick`:
+
+```powershell
+$paper = (Resolve-Path -LiteralPath 'results/paper').Path
+$old = Join-Path $paper 'multiplicity'
+$backup = Join-Path $paper ('multiplicity-backup-' + [guid]::NewGuid().ToString('N'))
+if ((Split-Path -Parent $old) -ne $paper) { throw 'Unexpected output path' }
+Move-Item -LiteralPath $old -Destination $backup -ErrorAction Stop
+python -m experiments.multiplicity_scaling --config configs/multiplicity.json --output results/paper/multiplicity --workers 2
+```
+
+The old CSV/JSON files and figures remain in the backup; the new run writes to
+`results/paper/multiplicity/`. No eigenvalue or observable experiment is run.
+If the new run is interrupted, rerun that same Python command with `--resume`
+only while its configuration, source, and library versions remain unchanged.
+Never use `--resume` to combine the old and new settings. In the notebook,
+leave `MULTIPLICITY_ACTION = "plot"` to inspect the completed replacement.
+
 ## Replot without simulation
 
 ```bash
@@ -118,7 +141,7 @@ python -m qfames.plotting results/paper/multiplicity
 python -m qfames.plotting results/paper/observable
 ```
 
-Equivalently, add `--plot-only` to an experiment command. This reads the saved metadata and summary, not the current configuration file. Each figure is exported as both vector PDF and 300-dpi PNG. Reference lines use a prescribed slope, with log-mean vertical placement; they are not slope regressions. Multiplicity singular-value guides appear only in the independent figure and use its s4/L points with L >= 24 in each panel; guides are skipped if fewer than two such points exist. The shared multiplicity figure has no reference guide. Each reference label shows a matching dotted line sample after `ref.`. All data points remain visible. Eigenvalue and observable canvases are 3.35 by 3.25 inches with identical axes bounds, 9 pt ticks/legends and 10 pt labels; PDF exports preserve the physical canvas and vector content. Cost-plot color denotes N; solid circles denote independent, dashed open squares denote shared. Cost coordinates remain trial means.
+Equivalently, add `--plot-only` to an experiment command. This reads the saved metadata and summary, not the current configuration file. Each figure is exported as both vector PDF and 300-dpi PNG. Reference lines use a prescribed slope, with log-mean vertical placement; they are not slope regressions. Multiplicity singular-value guides appear only in the independent figure and use its s4/L points with L >= 24 in each panel; guides are skipped if fewer than two such points exist. The shared multiplicity figure has no reference guide. Both multiplicity figures use the same y-axis limits [2e-3, 0.4]. Replotting also reads the existing `trials.csv` to compute SEM for each normalized singular-value mean, grouped by (scheme, N, L): SEM = sample standard deviation (ddof=1) / sqrt(n). Only s4/L displays thin +/-1 SEM error bars; all mean curves remain from `summary.csv`. SEM is undefined for fewer than two trials or nonfinite trial values, and those error bars are omitted. No simulation or CSV update is needed. Each reference label shows a matching dotted line sample after `ref.`. All data points remain visible. Eigenvalue and observable canvases are 3.35 by 3.25 inches with identical axes bounds, 9 pt ticks/legends and 10 pt labels; PDF exports preserve the physical canvas and vector content. Cost-plot color denotes N; solid circles denote independent, dashed open squares denote shared. Cost coordinates remain trial means.
 
 Output names are:
 
@@ -164,10 +187,10 @@ Costs use the manuscript's unit-per-complex-datum convention. A real/imaginary c
 ## Numerical choices
 
 - **Noise:** exact correlations plus independent real and imaginary Gaussian noise, each with the configured standard deviation. This is a surrogate model, not bounded single-shot Hadamard outcomes and not a direct verification of every theorem assumption.
-- **Initial states:** experiment 1 repeats a fixed equal-weight vector to keep spectral weights fixed across L and trials. Experiment 2 uses independent normalized complex Gaussian vectors with every component magnitude greater than 0.5. A feasibility check and attempt limit prevent impossible rejection loops.
+- **Initial states:** experiment 1 repeats a fixed equal-weight vector to keep spectral weights fixed across L and trials. Experiment 2 uses four-dimensional independent normalized complex Gaussian vectors with every component magnitude greater than 0.4. A feasibility check and attempt limit prevent impossible rejection loops.
 - **Truncation:** experiments 1 and 3 use sigma = 6; experiment 2 restores sigma = 4. The omitted Gaussian mass decreases from erfc(2), about 4.7e-3, to erfc(3), about 2.2e-5. The truncated kernel is still not exactly the ideal Gaussian kernel.
 - **Peak search:** experiment 1 search the declared spectral interval using the Frobenius norm, then refine locally. The grid step is 0.4/T, equivalent to the original code's 20q/T at q=0.02; there is no hidden factor of 20. The search intervals and number of distinct clusters are supplied for these toy problems. True eigenvalues are used for error evaluation, not as evaluation locations. This is continuous refinement of the grid algorithm, not an exact implementation of a finite-grid theorem.
-- **Multiplicity:** explicitly configured evaluation_centers=[0.0,0.02], with target multiplicities 2 and 1 and no peak search or threshold recovery. Both independent and shared schemes use spectrum [0.0,0.0,0.02,0.10], T=50, sigma=4, N=500, L=R in [5,8,12,16,24,32,50,70,100], noise_std=0.1, min_overlap=0.4, 50 trials and seed=42. Initial states retain the random complex Gaussian, normalization, and minimum-overlap rejection procedure; their dimension is len(eigenvalues), now 4. The seed rule is unchanged: state seed [seed,2,L,N,trial,0], sampling/noise seed ending in 1 (independent) or 2 (shared). Noise remains independent across matrix entries even with shared times. Two separate 1x2 figures show independent and shared sampling respectively; each panel shows that scheme's four trial-mean normalized singular values s1/L through s4/L. The added eigenvalue 0.10 contributes to sampling but creates no third evaluation center or panel. The setting aims to preserve the middle singular values' deterministic residual plateaus while introducing shared-time fluctuation through the fourth spectral direction, so shared s4/L may approach a plateau at sufficiently large L while independent s4/L continues to decrease. This is an intended behavior to investigate, not a verified result; no trend is imposed in plotting or data processing. Existing saved results retain their original metadata and have not been regenerated with this setting.
+- **Multiplicity:** explicitly configured evaluation_centers=[0.0,0.02], with target multiplicities 2 and 1 and no peak search or threshold recovery. Both independent and shared schemes use spectrum [0.0,0.0,0.02,0.10], T=150, sigma=6, N=500, L=R in [5,8,12,16,24,32,50,70,100], noise_std=0.1, min_overlap=0.4, 50 trials and seed=42. Initial states retain the random complex Gaussian, normalization, and minimum-overlap rejection procedure; their dimension is len(eigenvalues), now 4. The seed rule is unchanged: state seed [seed,2,L,N,trial,0], sampling/noise seed ending in 1 (independent) or 2 (shared). Noise remains independent across matrix entries even with shared times. Two separate 1x2 figures show independent and shared sampling respectively; each panel shows that scheme's four trial-mean normalized singular values s1/L through s4/L. The added eigenvalue 0.10 contributes to sampling but creates no third evaluation center or panel. The longer filter time suppresses deterministic leakage from other clusters so the non-target singular values can expose the independent/shared sampling difference. This is the experimental aim; curves are neither smoothed nor adjusted to impose a trend. Saved results are identified by their own metadata, not by the current configuration. `grid_step`, `alpha`, `threshold`, and `search_bounds` are unused by this exact-center multiplicity diagnostic; it performs neither peak search nor thresholding. These parameters retain their existing uses in other experiments.
 - **Observable:** uses deterministic initial states with fixed cross-cluster correlation: each row is `[1, exp(2*pi*j*i/n), 1]/sqrt(3)`. Each row has unit norm; the first two columns have Gram matrix `(n/3)I`, so the target-cluster frame has condition number 1; the third column equals the first. Both sampling schemes use exactly the same frame for a given L,R, while their time-sharing patterns differ. The target multiplicity 2 is a known input. Peak localization reads `search_bounds` from the configuration (default [-0.04, 0.04]), maximizing the Frobenius norm with bounded `minimize_scalar` and xatol=1e-10. There is no global scan or second-peak requirement. The estimated theta_star (saved as `peak_0`) is used in both denominator and observable numerator; `peak_1` is unused, and `peak_error` measures the target location error. Optimizer success, evaluation count, and message are retained in the trial CSV; failures remain in error quantiles. This is an observable error scaling experiment, not end-to-end recovery of a completely unknown spectrum. The spectrum is {0,0,0.1}, the block-supported observable is [[1.5,0.5,0],[0.5,1.5,0],[0,0,0]], and targets are {1,2}. T=50, sigma=6, and both noise standard deviations are 0.015. N is 200, 500, or 1000, with fixed_N=500 and 100 trials per point for the formal run. A separate 3-trial check precedes the formal run; seed 42 and all data points are retained. Outputs use the formal `observable/` directory; previous results are archived under `results/old/2026-10-02/observable/`. Local search reduces classical computation only: costs still include all sampled spectral and two-leg observable evolution times, with LR weighting for shared times.
 - **Generalized eigenvalues:** the projected problem is solved directly, without an explicit inverse. Errors use bottleneck matching in the complex plane, retaining imaginary parts rather than silently dropping them. `max_imaginary` and `projected_condition` are saved for diagnosis. This can produce larger reported errors than the old real-part-only metric.
 - **Failures:** failed peak searches or singular projected denominators receive infinite error. Quantiles use NumPy's `inverted_cdf` definition and include failures. Infinite quantiles appear as gaps with a warning, not fabricated finite points. Multiplicity singular-value means include all trials and do not depend on peak-search success. A peak-search failure stops before observable acquisition, so its recorded time is the actual partial cost.

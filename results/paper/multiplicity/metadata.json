@@ -26,8 +26,8 @@
       500
     ],
     "fixed_N": 500,
-    "T": 50.0,
-    "sigma": 4.0,
+    "T": 150.0,
+    "sigma": 6.0,
     "grid_step": 0.4,
     "alpha": 2.0,
     "threshold": 0.1,
@@ -44,7 +44,7 @@
   "code_sha256": {
     "qfames\\__init__.py": "16dab917644542f6268033fe17b129b1088f695e5d42d7e2761c76f085e97690",
     "qfames\\core.py": "bac19a6d73bc471b23f8b988a7ca121a000b23efce1ec55da0eee5897a8c9dda",
-    "qfames\\plotting.py": "4261386daa7a3cdd5748a55c968d4d7aef260be99aa1395a6a188bee9b33d9f6",
+    "qfames\\plotting.py": "f16287ecf093d4b378104467cd1a2dbe0cab1336b829d9053f7f55dd74880443",
     "experiments\\__init__.py": "3dab48845ee0c7707334480eaf7ff37b3686c07be94de94e3eb0344606cf98a2",
     "experiments\\common.py": "13cbfbf90b5c504af03554874a7f96b8acca5d418a0d60bc0d63775409f44110",
     "experiments\\eigenvalue_scaling.py": "83f94c4ace6fe152bc24fa09b4f33240f95c879974671357eb6012f9d5fbe2d8",
