@@ -1,38 +1,18 @@
 {
-  "eigenvalues": [
-    0.0,
-    0.0,
-    0.02,
-    0.10
-  ],
-  "evaluation_centers": [
-    0.0,
-    0.02
-  ],
-  "L_values": [
-    5,
-    8,
-    12,
-    16,
-    24,
-    32,
-    50,
-    70,
-    100
-  ],
-  "N_values": [
-    500
-  ],
-  "fixed_N": 500,
+  "eigenvalues": [0.0, 0.0, 0.02, 0.10, 0.01],
+  "dominant_eigenvalues": [0.0, 0.0, 0.02, 0.10],
+  "tail_eigenvalues": [0.01],
+  "tail_weight": 0.001,
+  "evaluation_centers": [0.0, 0.02],
+  "L_values": [5, 8, 12, 16, 24, 32, 50, 70, 100],
+  "N_values": [30],
+  "fixed_N": 30,
   "T": 150.0,
   "sigma": 6.0,
   "grid_step": 0.4,
   "alpha": 2.0,
   "threshold": 0.1,
-  "search_bounds": [
-    -0.01,
-    0.03
-  ],
+  "search_bounds": [-0.01, 0.03],
   "noise_std": 0.1,
   "min_overlap": 0.4,
   "trials": 50,

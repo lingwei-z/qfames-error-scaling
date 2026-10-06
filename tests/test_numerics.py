@@ -67,7 +67,7 @@ class NumericsTests(unittest.TestCase):
                      status="ok" if i < 8 else "peak_failure",
                      error=.1 if i < 8 else np.inf, total_time=1,
                      spectral_time=1, observable_time=0, max_time=1,
-                     **{f"sv_{c}_{k}": "" for c in range(2) for k in range(1, 5)})
+                     **{f"sv_{c}_{k}": "" for c in range(2) for k in range(1, 6)})
                 for i in range(10)]
         with tempfile.TemporaryDirectory() as directory:
             raw = Path(directory) / "trials.csv"

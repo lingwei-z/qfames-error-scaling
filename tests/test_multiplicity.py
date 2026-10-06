@@ -13,11 +13,11 @@ from qfames.plotting import multiplicity_plot, multiplicity_standard_errors
 
 class MultiplicityTests(unittest.TestCase):
     def test_saved_trial_sem_is_not_standard_deviation(self):
-        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 5)]
+        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 6)]
         csv_text = 'scheme,N,L,' + ','.join(fields) + '\n'
         for scheme, values in [('independent', [1, 3]), ('shared', [2, 4, 6, 8])]:
             for value in values:
-                csv_text += f'{scheme},500,24,' + ','.join([str(value)] * 8) + '\n'
+                csv_text += f'{scheme},500,24,' + ','.join([str(value)] * len(fields)) + '\n'
         rows = [dict(scheme=s, N=500, L=24, **{f: 123. for f in fields})
                 for s in ['independent', 'shared']]
         with patch.object(Path, 'open', return_value=io.StringIO(csv_text)):
@@ -29,35 +29,35 @@ class MultiplicityTests(unittest.TestCase):
 
     def test_exact_centers_without_peak_search(self):
         cfg = json.loads(Path('configs/multiplicity.json').read_text())
-        matrix = np.diag([8., 6., 4., 2.]).astype(complex)
-        data = Samples(matrix[..., None], np.zeros((4, 4, 1)), 0., 0.)
+        matrix = np.diag([10., 8., 6., 4., 2.]).astype(complex)
+        data = Samples(matrix[..., None], np.zeros((5, 5, 1)), 0., 0.)
         with patch('experiments.common.find_peaks', side_effect=AssertionError('peak search called')), patch('experiments.common.spectral_samples', return_value=data):
-            row = run_trial(('multiplicity', cfg, 'independent', 500, 4, 0))
+            row = run_trial(('multiplicity', cfg, 'independent', 500, 5, 0))
         self.assertEqual(row['evaluation_mode'], 'exact_cluster_centers')
         for c, theta in enumerate([0., .02]):
             self.assertEqual(row[f'evaluation_theta_{c}'], theta)
             self.assertEqual(row[f'peak_{c}'], '')
-            np.testing.assert_allclose([row[f'sv_{c}_{k}'] for k in range(1, 5)], [2, 1.5, 1, .5])
+            np.testing.assert_allclose([row[f'sv_{c}_{k}'] for k in range(1, 6)], [2, 1.6, 1.2, .8, .4])
 
     def test_quick_skips_reference_and_keeps_points(self):
-        rows = [dict(L=L, failed=0, **{f'sv_{c}_{k}': (5-k)/L for c in range(2) for k in range(1,5)}) for L in [5, 8, 12]]
+        rows = [dict(L=L, failed=0, **{f'sv_{c}_{k}': (6-k)/L for c in range(2) for k in range(1,6)}) for L in [5, 8, 12]]
         with tempfile.TemporaryDirectory() as tmp, patch('qfames.plotting.finish') as finish:
             multiplicity_plot(rows, {'eigenvalues': [0,0,.02]}, Path(tmp), False)
             self.assertEqual(finish.call_count, 1)
             self.assertTrue(finish.call_args.args[1].name.endswith('_independent'))
             fig = finish.call_args.args[0]
             for ax in fig.axes:
-                for line in ax.lines[:4]:
+                for line in ax.lines[:5]:
                     np.testing.assert_array_equal(line.get_xdata(), [5,8,12])
-                self.assertEqual(len(ax.lines), 4)
+                self.assertEqual(len(ax.lines), 5)
                 self.assertIn('multiplicity', ax.get_title())
             import matplotlib.pyplot as plt
             plt.close(fig)
 
     def test_scheme_curves_never_mix_and_reference_uses_tail(self):
         rows = [dict(scheme=s, L=L, failed=0,
-                     **{f'sv_{c}_{k}': (1 if s == 'independent' else 10)*(5-k)/L
-                        for c in range(2) for k in range(1,5)})
+                     **{f'sv_{c}_{k}': (1 if s == 'independent' else 10)*(6-k)/L
+                        for c in range(2) for k in range(1,6)})
                 for L in [50, 5, 24, 12] for s in ['shared', 'independent']]
         with patch('qfames.plotting.finish') as finish:
             multiplicity_plot(rows, {'eigenvalues': [0,0,.02]}, Path('.'), False)
@@ -71,21 +71,21 @@ class MultiplicityTests(unittest.TestCase):
                 for ax in fig.axes:
                     np.testing.assert_allclose(ax.get_ylim(), [2e-3, .4])
                     data = [line for line in ax.lines if line.get_marker() in ('o', 's')]
-                    self.assertEqual(len(data), 4)
+                    self.assertEqual(len(data), 5)
                     for line in data:
                         self.assertTrue(line.get_label().endswith(scheme))
                         np.testing.assert_array_equal(line.get_xdata(), [5,12,24,50])
                         k = int(line.get_label()[1])
-                        np.testing.assert_allclose(line.get_ydata(), factor*(5-k)/line.get_xdata())
+                        np.testing.assert_allclose(line.get_ydata(), factor*(6-k)/line.get_xdata())
                     if scheme == 'shared':
-                        self.assertEqual(len(ax.lines), 4)
+                        self.assertEqual(len(ax.lines), 5)
                         self.assertIsNone(ax.get_legend())
                         continue
                     ref = next(line for line in ax.lines if line.get_linestyle() == ':')
                     x, y = ref.get_data()
                     np.testing.assert_array_equal(x, [24,50])
                     np.testing.assert_allclose(np.diff(np.log(y))/np.diff(np.log(x)), -.5)
-                    self.assertAlmostEqual(np.mean(np.log(factor/x)-np.log(y)), 0)
+                    self.assertAlmostEqual(np.mean(np.log(2*factor/x)-np.log(y)), 0)
                 plt.close(fig)
 
     def test_paired_frames_and_distinct_sampling_streams(self):
@@ -110,3 +110,41 @@ class MultiplicityTests(unittest.TestCase):
             matrix = filtered_matrix(data,theta)
             self.assertLessEqual(np.linalg.matrix_rank(matrix, tol=1e-12),3)
             self.assertLess(np.linalg.svd(matrix, compute_uv=False)[3], 1e-12)
+
+    def test_legacy_four_value_trials_require_rerun(self):
+        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 5)]
+        with patch.object(Path, 'open', return_value=io.StringIO('scheme,N,L,' + ','.join(fields) + '\n')):
+            with self.assertRaisesRegex(ValueError, 'rerun'):
+                multiplicity_standard_errors(Path('.'), [])
+
+    def test_five_value_trial_summary_and_plot(self):
+        import csv
+        from experiments.common import FIELDS, EVALUATION_FIELDS, summarize, validate_config
+        from qfames.plotting import plot_run
+        cfg = json.loads(Path('configs/multiplicity.json').read_text())
+        validate_config('multiplicity', cfg)
+        cfg['L_values'] = [4]
+        with self.assertRaises(ValueError):
+            validate_config('multiplicity', cfg)
+        cfg['L_values'] = [5]
+        rows = [run_trial(('multiplicity', cfg, scheme, 50, 5, i))
+                for scheme in ['independent', 'shared'] for i in range(2)]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            with (path / 'trials.csv').open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=FIELDS + EVALUATION_FIELDS)
+                writer.writeheader()
+                writer.writerows(rows)
+            summary = summarize(path / 'trials.csv', path / 'summary.csv')
+            for row in summary:
+                group = [r for r in rows if r['scheme'] == row['scheme']]
+                for c in range(2):
+                    field = f'sv_{c}_5'
+                    self.assertGreater(row[field], 0)
+                    self.assertAlmostEqual(row[field], np.mean([r[field] for r in group]))
+            (path / 'metadata.json').write_text(json.dumps(dict(
+                experiment='multiplicity', config=cfg, quick=True,
+                evaluation_mode='exact_cluster_centers')))
+            plot_run(path)
+            self.assertEqual(len(list((path / 'figures').glob('*.png'))), 2)
+            self.assertEqual(len(list((path / 'figures').glob('*.pdf'))), 2)

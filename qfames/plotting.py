@@ -12,7 +12,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator, FuncFormatter, NullFormatter
 import numpy as np
 
-COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7"]
+COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]
 SCHEMES = ("independent", "shared")
 PAPER_SIZE = (3.35, 3.25)
 
@@ -143,17 +143,20 @@ def multiplicity_plot(rows, cfg, directory, quick):
             multiplicity = np.count_nonzero(np.asarray(cfg["eigenvalues"]) == center)
             ax.set_title(rf"$\theta={center:g}$; multiplicity {multiplicity}", fontsize=10)
         handles = [Line2D([], [], color=c, lw=2, label=rf"$s_{k}/L$") for k, c in enumerate(COLORS, 1)]
-        legend(fig, handles, 1.0, 4, x=.53)
+        legend(fig, handles, 1.0, 5, x=.53)
         legend(fig, scheme_handles([scheme]), .91, 1, x=.53)
         finish(fig, directory / f"multiplicity_singular_values_vs_state_count_{scheme}", quick)
 
 
 def multiplicity_standard_errors(path, rows):
     """Attach sample SD / sqrt(n) from saved trials; preserve summary means."""
-    fields = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 5)]
+    fields = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 6)]
     groups = {}
     with (path / "trials.csv").open(newline="") as stream:
-        for trial in csv.DictReader(stream):
+        reader = csv.DictReader(stream)
+        if not set(fields).issubset(reader.fieldnames or []):
+            raise ValueError("Saved multiplicity trials lack five singular values; rerun in a new output directory.")
+        for trial in reader:
             key = (trial["scheme"], float(trial["N"]), float(trial["L"]))
             groups.setdefault(key, []).append([float(trial[field]) for field in fields])
     for row in rows:
@@ -187,6 +190,8 @@ def plot_run(path):
     if meta["experiment"] == "multiplicity":
         if meta.get("evaluation_mode") != "exact_cluster_centers":
             raise ValueError("Legacy multiplicity results are not evaluated at the exact cluster centers; use a new run directory.")
+        if any(f"sv_{c}_5" not in row for row in rows for c in range(2)):
+            raise ValueError("Saved multiplicity summary lacks s5/L; rerun in a new output directory.")
         multiplicity_standard_errors(path, rows)
         multiplicity_plot(rows, meta["config"], directory, meta["quick"])
     else:

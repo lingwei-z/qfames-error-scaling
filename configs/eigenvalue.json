@@ -1,6 +1,9 @@
 {
-  "eigenvalues": [0.0, 0.25],
-  "L_values": [2, 4, 8, 12, 20, 32, 50, 80, 110],
+  "eigenvalues": [0.0, 0.25, 0.01],
+  "dominant_eigenvalues": [0.0, 0.25],
+  "tail_eigenvalues": [0.01],
+  "tail_weight": 0.001,
+  "L_values": [2, 4, 8, 12, 20, 32, 50, 70, 100],
   "N_values": [50, 200, 800],
   "fixed_N": 200,
   "T": 200.0,

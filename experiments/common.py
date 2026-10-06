@@ -25,7 +25,7 @@ BASE_FIELDS = ["scheme", "N", "L", "trial", "status", "error", "peak_error",
                "spectral_time", "observable_time", "total_time", "max_time",
                "peak_0", "peak_1", "projected_condition", "max_imaginary",
                "message"]
-SV_FIELDS = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 5)]
+SV_FIELDS = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 6)]
 FIELDS = BASE_FIELDS + SV_FIELDS
 EVALUATION_FIELDS = ["evaluation_mode", "evaluation_theta_0", "evaluation_theta_1"]
 
@@ -42,13 +42,19 @@ def run_trial(job):
                peak_error=np.inf, spectral_time=0.0, observable_time=0.0,
                total_time=0.0, max_time=0.0)
     spectrum = np.array(cfg["eigenvalues"])
-    centers = np.unique(spectrum)
+    centers = np.unique(spectrum if name == "observable" else cfg["dominant_eigenvalues"])
     if name == "observable":
         phi, psi = observable_initial_states(L, L)
     else:
-        phi, psi = initial_states(state_rng, len(spectrum), L, L,
+        phi, psi = initial_states(state_rng, len(cfg["dominant_eigenvalues"]), L, L,
                                   replicated=name == "eigenvalue",
                                   min_overlap=cfg["min_overlap"])
+        # Apply rejection only to the original normalized dominant vectors.
+        # The constant single-column tail gives normalized p_tail = tail_weight exactly.
+        weight = cfg["tail_weight"]
+        phi, psi = (np.column_stack((np.sqrt(1 - weight) * states,
+                                    np.full(len(states), np.sqrt(weight))))
+                    for states in (phi, psi))
     data = spectral_samples(rng, spectrum, phi, psi, N, cfg["T"], cfg["sigma"],
                             scheme, cfg["noise_std"])
     row.update(spectral_time=data.total_time, total_time=data.total_time,
@@ -59,7 +65,7 @@ def run_trial(job):
             row[f"evaluation_theta_{cluster}"] = float(theta)
             matrix = filtered_matrix(data, theta)
             singular = np.linalg.svd(matrix, compute_uv=False)
-            for k in range(1, 5):
+            for k in range(1, 6):
                 row[f"sv_{cluster}_{k}"] = singular[k - 1] / L
         return row
     if name == "observable":
@@ -134,9 +140,13 @@ def summarize(raw_path, output):
 
 
 def validate_config(name, cfg):
+    if name in {"eigenvalue", "multiplicity"}:
+        if (len(cfg["tail_eigenvalues"]) != 1 or not 0 < cfg["tail_weight"] < 1
+                or cfg["eigenvalues"] != cfg["dominant_eigenvalues"] + cfg["tail_eigenvalues"]):
+            raise ValueError("Spectrum must contain dominant eigenvalues followed by one tail, with 0 < tail_weight < 1")
     if cfg["trials"] < 1 or cfg["seed"] < 0:
         raise ValueError("trials must be positive; seed must be nonnegative")
-    minimum = 4 if name == "multiplicity" else (3 if name == "observable" else 2)
+    minimum = 5 if name == "multiplicity" else (3 if name == "observable" else 2)
     if len(set(cfg["L_values"])) != len(cfg["L_values"]) or any(L < minimum for L in cfg["L_values"]):
         raise ValueError(f"L_values must be unique integers >= {minimum}")
     if name != "multiplicity" and (len(cfg["N_values"]) != 3 or len(set(cfg["N_values"])) != 3):
@@ -165,7 +175,7 @@ def main(name):
         return
     cfg = json.loads(args.config.read_text())
     if args.quick:
-        cfg.update(L_values=[4, 6, 8], N_values=[40, 80, 160], fixed_N=80, trials=4)
+        cfg.update(L_values=[5, 6, 8] if name == "multiplicity" else [4, 6, 8], N_values=[40, 80, 160], fixed_N=80, trials=4)
     if args.trials is not None:
         cfg["trials"] = args.trials
     if args.seed is not None:
