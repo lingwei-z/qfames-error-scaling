@@ -92,12 +92,14 @@ python -m qfames.plotting results/paper/observable
 
 The command-line plotter reads saved metadata and summaries rather than current configurations. Multiplicity also reads `trials.csv` for the s4/L standard-error bars. Reference lines show prescribed slopes, not fitted regressions. Figure styling is defined in `qfames/plotting.py`.
 
+The saved observable run retains metadata and CSV files from an earlier code version. It supports replotting, but `--resume` rejects its source-hash mismatch; use a new output directory for fresh simulations.
+
 ## Sampling and cost conventions
 
 Times follow a truncated Gaussian density
 
 $$
-a_T^{\mathrm{trunc}}(t) \propto \exp\!\left(-\frac{t^2}{4T^2}\right), \qquad |t| \leq \sigma T.
+a_T^{\mathrm{trunc}}(t) \propto \exp\left(-\frac{t^2}{4T^2}\right), \qquad |t| \leq \sigma T.
 $$
 
 $T$ is the filter scale; the sampled maximum time is recorded separately. Correlations receive independent real and imaginary Gaussian noise, including when times are shared across state pairs.
@@ -114,7 +116,7 @@ experiments/                  # Experiment entry points and trial execution
 configs/                      # JSON experiment settings
 tests/                        # Numerical and experiment regression checks
 results/paper/                # Saved experiment data and figures
-run_experiments.ipynb          # Notebook entry point
+run_experiments.ipynb         # Notebook entry point
 requirements.txt              # Core dependencies
 requirements-notebook.txt     # Notebook dependencies
 ```
