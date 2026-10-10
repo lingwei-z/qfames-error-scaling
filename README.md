@@ -94,7 +94,13 @@ The command-line plotter reads saved metadata and summaries rather than current 
 
 ## Sampling and cost conventions
 
-Times follow a truncated Gaussian density proportional to exp(-t²/(4T²)), with |t| ≤ sigma T. T is the filter scale; the sampled maximum time is recorded separately. Correlations receive independent real and imaginary Gaussian noise, including when times are shared across state pairs.
+Times follow a truncated Gaussian density
+
+$$
+a_T^{\mathrm{trunc}}(t) \propto \exp\!\left(-\frac{t^2}{4T^2}\right), \qquad |t| \leq \sigma T.
+$$
+
+$T$ is the filter scale; the sampled maximum time is recorded separately. Correlations receive independent real and imaginary Gaussian noise, including when times are shared across state pairs.
 
 Costs sum the absolute sampled evolution times for every state pair, including repeated shared times. Observable costs include spectral-data acquisition and both observable evolution legs. Cost plots use mean sampled cost and the empirical 90th-percentile error at each configuration.
 
