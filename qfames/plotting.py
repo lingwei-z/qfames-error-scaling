@@ -73,11 +73,14 @@ def curve(ax, rows, xkey, label, color, scheme, ykey="error_q90"):
     return x, y
 
 
-def guide(ax, x, y, exponent, label):
+def guide(ax, x, y, exponent, label, skip_last=0):
     """Prescribed reference slope; log-mean vertical placement, no slope regression."""
     good = np.isfinite(x) & np.isfinite(y) & (y > 0) & (x > 0)
-    if np.count_nonzero(good) >= 2:
-        amplitude = np.mean(np.log(y[good]) - exponent * np.log(x[good]))
+    fit = good.copy()
+    if skip_last:
+        fit[-skip_last:] = False
+    if np.count_nonzero(fit) >= 2:
+        amplitude = np.mean(np.log(y[fit]) - exponent * np.log(x[fit]))
         xx = np.sort(x[good])
         reference, = ax.plot(xx, np.exp(amplitude + exponent * np.log(xx)),
                              color="#777777", ls=":", lw=1.5)
@@ -96,7 +99,7 @@ def error_plots(name, rows, cfg, directory, quick):
         selected = [r for r in rows if r["scheme"] == scheme and r["N"] == cfg["fixed_N"]]
         x, y = curve(ax, selected, "L", scheme.capitalize(), COLORS[i], scheme)
         if scheme == "independent":
-            guide(ax, x, y, -1, r"$L^{-1}$")
+            guide(ax, x, y, -1, r"$L^{-1}$", skip_last=3 if name == "eigenvalue" else 0)
     ax.set_title(f"Fixed N = {cfg['fixed_N']}", fontsize=10, pad=7)
     legend(fig, ax.get_legend_handles_labels()[0], .96, 1)
     finish(fig, directory / f"{name}_error_vs_state_count", quick)
@@ -108,7 +111,7 @@ def error_plots(name, rows, cfg, directory, quick):
             selected = [r for r in rows if r["scheme"] == scheme and r["N"] == N]
             x, y = curve(ax, selected, "mean_total_time", f"{scheme}, N={N}", COLORS[i], scheme)
             if N == cfg["fixed_N"] and scheme == "independent":
-                guide(ax, x, y, -.5, r"$T_{\mathrm{total}}^{-1/2}$")
+                guide(ax, x, y, -.5, r"$T_{\mathrm{total}}^{-1/2}$", skip_last=3 if name == "eigenvalue" else 0)
     handles = [Line2D([], [], color=COLORS[i], lw=2, label=rf"$N={N}$") for i, N in enumerate(cfg["N_values"])]
     legend(fig, handles, .995, 3, x=.52)
     legend(fig, scheme_handles(), .90, 2)
