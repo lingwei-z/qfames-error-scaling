@@ -166,12 +166,6 @@ def multiplicity_plot(rows, cfg, directory, quick, tau=None):
             ax.set_ylim(2e-3, .4)
             for k, color in enumerate(COLORS, 1):
                 x, y = curve(ax, selected, "L", f"s{k}, {scheme}", color, scheme, f"sv_{cluster}_{k}")
-                if k == 4:
-                    sem = np.array([r.get(f"sv_{cluster}_{k}_sem", np.nan) for r in selected])
-                    valid = np.isfinite(y) & np.isfinite(sem)
-                    if np.any(valid):
-                        ax.errorbar(x[valid], y[valid], yerr=sem[valid], fmt="none",
-                                    ecolor=color, elinewidth=.7, capsize=1.5, capthick=.7)
                 if k == 4 and scheme == "independent":
                     guide(ax, x[x >= 24], y[x >= 24], -.5, r"$L^{-1/2}$")
             # Older saved runs predate explicit evaluation centers.
@@ -185,29 +179,6 @@ def multiplicity_plot(rows, cfg, directory, quick, tau=None):
         legend(fig, handles, 1.0, 5, x=.53)
         legend(fig, scheme_handles([scheme]) + tau_handles, .91, 1 + len(tau_handles), x=.53)
         finish(fig, directory / f"multiplicity_singular_values_vs_state_count_{scheme}", quick)
-
-
-def multiplicity_standard_errors(path, rows):
-    """Attach sample SD / sqrt(n) from saved trials; preserve summary means."""
-    fields = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 6)]
-    groups = {}
-    with (path / "trials.csv").open(newline="") as stream:
-        reader = csv.DictReader(stream)
-        if not set(fields).issubset(reader.fieldnames or []):
-            raise ValueError("Saved multiplicity trials lack five singular values; rerun in a new output directory.")
-        for trial in reader:
-            key = (trial["scheme"], float(trial["N"]), float(trial["L"]))
-            groups.setdefault(key, []).append([float(trial[field]) if trial[field] else np.nan for field in fields])
-    for row in rows:
-        key = (row["scheme"], row["N"], row["L"])
-        values = np.asarray(groups.get(key, []), dtype=float)
-        if values.size:
-            values = values[np.all(np.isfinite(values), axis=1)]
-        for i, field in enumerate(fields):
-            # Do not silently drop invalid trials or imply zero uncertainty for n=1.
-            row[field + "_sem"] = (np.std(values[:, i], ddof=1) / np.sqrt(len(values))
-                                   if len(values) >= 2 and np.all(np.isfinite(values[:, i]))
-                                   else np.nan)
 
 
 def read_run(path):
@@ -233,7 +204,6 @@ def plot_run(path, tau=None):
             raise ValueError("Unsupported multiplicity evaluation mode; use a new run directory.")
         if any(f"sv_{c}_5" not in row for row in rows for c in range(2)):
             raise ValueError("Saved multiplicity summary lacks s5/L; rerun in a new output directory.")
-        multiplicity_standard_errors(path, rows)
         multiplicity_plot(rows, meta["config"], directory, meta["quick"], tau=tau)
     else:
         error_plots(meta["experiment"], rows, meta["config"], directory, meta["quick"])

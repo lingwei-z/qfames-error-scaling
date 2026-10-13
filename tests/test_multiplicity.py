@@ -1,6 +1,5 @@
 """Regression checks for estimated-center multiplicity evaluation."""
 import json
-import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -8,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 from experiments.common import run_trial
 from qfames.core import (Samples, initial_states, spectral_samples, filtered_matrix)
-from qfames.plotting import multiplicity_plot, multiplicity_standard_errors, threshold_range
+from qfames.plotting import multiplicity_plot, threshold_range
 
 
 class MultiplicityTests(unittest.TestCase):
@@ -36,21 +35,6 @@ class MultiplicityTests(unittest.TestCase):
             np.testing.assert_array_equal(ax.lines[-1].get_xdata(), [5.])
         finally:
             plt.close(fig)
-
-    def test_saved_trial_sem_is_not_standard_deviation(self):
-        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 6)]
-        csv_text = 'scheme,N,L,' + ','.join(fields) + '\n'
-        for scheme, values in [('independent', [1, 3]), ('shared', [2, 4, 6, 8])]:
-            for value in values:
-                csv_text += f'{scheme},500,24,' + ','.join([str(value)] * len(fields)) + '\n'
-        rows = [dict(scheme=s, N=500, L=24, **{f: 123. for f in fields})
-                for s in ['independent', 'shared']]
-        with patch.object(Path, 'open', return_value=io.StringIO(csv_text)):
-            multiplicity_standard_errors(Path('.'), rows)
-        for row, expected in zip(rows, [1., np.sqrt(5/3)]):
-            for field in fields:
-                self.assertAlmostEqual(row[field + '_sem'], expected)
-                self.assertEqual(row[field], 123.)
 
     def test_svd_uses_estimated_peaks(self):
         cfg = json.loads(Path('configs/multiplicity.json').read_text())
@@ -136,12 +120,6 @@ class MultiplicityTests(unittest.TestCase):
             matrix = filtered_matrix(data,theta)
             self.assertLessEqual(np.linalg.matrix_rank(matrix, tol=1e-12),3)
             self.assertLess(np.linalg.svd(matrix, compute_uv=False)[3], 1e-12)
-
-    def test_legacy_four_value_trials_require_rerun(self):
-        fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 5)]
-        with patch.object(Path, 'open', return_value=io.StringIO('scheme,N,L,' + ','.join(fields) + '\n')):
-            with self.assertRaisesRegex(ValueError, 'rerun'):
-                multiplicity_standard_errors(Path('.'), [])
 
     def test_five_value_trial_summary_and_plot(self):
         import csv
