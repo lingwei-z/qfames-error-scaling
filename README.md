@@ -59,3 +59,7 @@ Eigenvalue and observable plots show 90th-percentile error versus state count an
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## License
+
+This code is released under the [MIT License](LICENSE).
