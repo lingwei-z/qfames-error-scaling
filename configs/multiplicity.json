@@ -2,7 +2,7 @@
   "eigenvalues": [0.0, 0.0, 0.02, 0.10, 0.01],
   "dominant_eigenvalues": [0.0, 0.0, 0.02, 0.10],
   "tail_eigenvalues": [0.01],
-  "tail_weight": 0.001,
+  "tail_weight": 0.05,
   "evaluation_centers": [0.0, 0.02],
   "L_values": [5, 8, 12, 16, 24, 32, 50, 70, 100],
   "N_values": [30],

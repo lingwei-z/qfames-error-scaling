@@ -17,7 +17,7 @@
     "tail_eigenvalues": [
       0.01
     ],
-    "tail_weight": 0.001,
+    "tail_weight": 0.05,
     "evaluation_centers": [
       0.0,
       0.02
@@ -55,9 +55,9 @@
   "code_sha256": {
     "qfames\\__init__.py": "16dab917644542f6268033fe17b129b1088f695e5d42d7e2761c76f085e97690",
     "qfames\\core.py": "bac19a6d73bc471b23f8b988a7ca121a000b23efce1ec55da0eee5897a8c9dda",
-    "qfames\\plotting.py": "fb0c9f3861c262b25b87b6a9d38120edb6483700940bd6968828dc00a59e9e7c",
+    "qfames\\plotting.py": "6c2300450e03f35bdfbfbe347dfbef1cdc6460b17fd5d50c743f437522a0c456",
     "experiments\\__init__.py": "3dab48845ee0c7707334480eaf7ff37b3686c07be94de94e3eb0344606cf98a2",
-    "experiments\\common.py": "16b216e1917b87079ea3bae27225b93136b58afa36b5d973bc82918c9104a1ad",
+    "experiments\\common.py": "d7db451751ae440585c46a09a0f79972c56e10cc15d319912bdc5db182b3278a",
     "experiments\\eigenvalue_scaling.py": "83f94c4ace6fe152bc24fa09b4f33240f95c879974671357eb6012f9d5fbe2d8",
     "experiments\\multiplicity_scaling.py": "ec8ee0eef75e75451dafe34b07efe17b3b694997bf700afd64f0fc27ccde00e7",
     "experiments\\observable_scaling.py": "fd6a787b92a957d0dce5e75cbaaaa3e89ba29a00f183a586344c0d18b0ee53fa"
@@ -67,8 +67,8 @@
   "scipy": "1.18.1",
   "cost_convention": "absolute sampled evolution time; unit per complex datum",
   "workers": 2,
-  "evaluation_mode": "exact_cluster_centers",
-  "evaluation_theta": [
+  "evaluation_mode": "estimated_cluster_centers",
+  "target_centers": [
     0.0,
     0.02
   ],
@@ -76,5 +76,5 @@
     "independent",
     "shared"
   ],
-  "field_description": "sv_<cluster>_<k>: s_k/L at exact cluster centers (summary: trial mean); peak fields unused"
+  "field_description": "sv_<cluster>_<k>: s_k/L at estimated peaks (summary: successful peak-search trial mean); peak fields record estimates"
 }

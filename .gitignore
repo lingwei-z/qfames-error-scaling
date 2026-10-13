@@ -3,7 +3,9 @@ __pycache__/
 .venv/
 venv/
 results/*
-!results/paper/
+!results/eigenvalue/
+!results/multiplicity/
+!results/observable/
 .DS_Store
 Thumbs.db
 .vscode/

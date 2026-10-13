@@ -60,11 +60,17 @@ def run_trial(job):
     row.update(spectral_time=data.total_time, total_time=data.total_time,
                max_time=data.max_time)
     if name == "multiplicity":
-        row.update(evaluation_mode="exact_cluster_centers", error=np.nan, peak_error=np.nan)
-        for cluster, theta in enumerate(cfg["evaluation_centers"]):
+        row.update(evaluation_mode="estimated_cluster_centers", error=np.nan)
+        peaks = find_peaks(data, cfg["T"], len(cfg["evaluation_centers"]),
+                           cfg["search_bounds"], cfg["grid_step"], cfg["alpha"], cfg["threshold"])
+        if len(peaks) != len(cfg["evaluation_centers"]):
+            row.update(status="peak_failure", message=f"Found {len(peaks)} of {len(cfg['evaluation_centers'])} peaks")
+            return row
+        row["peak_error"] = matching_error(peaks, cfg["evaluation_centers"])
+        for cluster, theta in enumerate(peaks):
+            row[f"peak_{cluster}"] = float(theta)
             row[f"evaluation_theta_{cluster}"] = float(theta)
-            matrix = filtered_matrix(data, theta)
-            singular = np.linalg.svd(matrix, compute_uv=False)
+            singular = np.linalg.svd(filtered_matrix(data, theta), compute_uv=False)
             for k in range(1, 6):
                 row[f"sv_{cluster}_{k}"] = singular[k - 1] / L
         return row
@@ -128,8 +134,11 @@ def summarize(raw_path, output):
         for field in SV_FIELDS:
             vals = [float(r[field]) for r in group if r[field] != ""]
             item[field] = float(np.mean(vals)) if vals else np.nan
-        if group[0].get("evaluation_mode") == "exact_cluster_centers":
-            item.update({field: group[0][field] for field in EVALUATION_FIELDS})
+        if group[0].get("evaluation_mode") == "estimated_cluster_centers":
+            item["evaluation_mode"] = "estimated_cluster_centers"
+            for field in EVALUATION_FIELDS[1:]:
+                vals = [float(r[field]) for r in group if r[field] != ""]
+                item[field] = float(np.mean(vals)) if vals else np.nan
         summaries.append(item)
     if summaries:
         with output.open("w", newline="") as stream:
@@ -168,7 +177,7 @@ def main(name):
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--plot-only", action="store_true")
     args = parser.parse_args()
-    output = args.output or ROOT / "results" / ("quick" if args.quick else "paper") / name
+    output = args.output or ROOT / "results" / ("quick" if args.quick else "") / name
     if args.plot_only:
         from qfames.plotting import plot_run
         plot_run(output)
@@ -194,10 +203,10 @@ def main(name):
                     workers=args.workers)
     fields = FIELDS + EVALUATION_FIELDS if name == "multiplicity" else FIELDS
     if name == "multiplicity":
-        metadata.update(evaluation_mode="exact_cluster_centers",
-                        evaluation_theta=list(cfg["evaluation_centers"]),
+        metadata.update(evaluation_mode="estimated_cluster_centers",
+                        target_centers=list(cfg["evaluation_centers"]),
                         sampling_schemes=["independent", "shared"],
-                        field_description="sv_<cluster>_<k>: s_k/L at exact cluster centers (summary: trial mean); peak fields unused")
+                        field_description="sv_<cluster>_<k>: s_k/L at estimated peaks (summary: successful peak-search trial mean); peak fields record estimates")
     if name == "observable":
         fields = FIELDS + ["optimizer_success", "optimizer_nfev", "optimizer_message"]
         metadata.update(initial_state_mode="deterministic_correlated_frame",

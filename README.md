@@ -43,11 +43,11 @@ jupyter lab run_experiments.ipynb
 Select a Python environment with the dependencies installed, then run the cells in order. The notebook calls the same experiment modules as the command-line interface and displays summary tables and six figures.
 
 - `MODE` selects `"paper"` (JSON configurations) or `"quick"` (smoke tests).
-- Each experiment has an action selector: `"run"` computes or resumes, `"plot"` regenerates figures from saved data, and `"view"` displays existing figures. Currently eigenvalue and observable use `"plot"`; multiplicity uses `"run"`. Set all three to `"plot"` to replot without simulation.
+- Each experiment has an action selector: `"run"` computes or resumes, `"plot"` regenerates figures from saved data, and `"view"` displays existing figures. All three currently use `"plot"`. Set all three to `"plot"` to replot without simulation.
 - `RESUME = True` reuses completed compatible trials. For changed settings or a fresh run, choose a new `RUN_NAME`.
 - `OUTPUTS` selects the experiment directories. Missing data is skipped for `"plot"` and `"view"`; eigenvalue and multiplicity also skip results whose saved configuration differs from the requested settings.
 
-Default full-run outputs are under `results/paper/`. Full sweeps can take considerable time and memory. Avoid running the notebook and a terminal job against the same output directory simultaneously.
+Default full-run outputs are `results/eigenvalue/`, `results/multiplicity/`, and `results/observable/`. Quick runs still use `results/quick/`. Full sweeps can take considerable time and memory. Avoid running the notebook and a terminal job against the same output directory simultaneously.
 
 ## Command-line experiments
 
@@ -68,14 +68,18 @@ python -m experiments.eigenvalue_scaling --config configs/eigenvalue.json --outp
 | Experiment | Diagnostic | Figures |
 | --- | --- | --- |
 | Eigenvalue | Errors for the two dominant eigenvalues, with a small spectral tail | Error vs. state count and total evolution time |
-| Multiplicity | Mean normalized singular values s1/L through s5/L at exact centers 0 and 0.02, with multiplicities 2 and 1 | Separate two-panel figures for independent and shared sampling |
+| Multiplicity | Mean normalized singular values s1/L through s5/L at estimated peaks targeting 0 and 0.02, with multiplicities 2 and 1 | Separate two-panel figures for independent and shared sampling |
 | Observable | Errors for observable eigenvalues 1 and 2 in the multiplicity-two target eigenspace | Error vs. state count and total evolution time |
 
-All sweeps use L=R. Eigenvalue and observable state-count figures use `fixed_N`; each total-time figure compares three N values for both sampling schemes. Multiplicity evaluates known centers without peak search or threshold recovery.
+All sweeps use L=R. Eigenvalue and observable state-count figures use `fixed_N`; each total-time figure compares three N values for both sampling schemes. Multiplicity first searches for two peaks in `search_bounds`, then evaluates SVD at those estimated eigenvalues using the same sampled data. `evaluation_centers` labels the targets and measures peak error; it does not supply the SVD positions. Failed peak searches are counted and excluded from singular-value means.
+
+Each multiplicity panel shows two dashed threshold boundaries with pale shading between them. They lie inside the mean-spectrum admissible interval `mean(s_(m+1)/L) <= tau < mean(s_m/L)`, leaving 15% of the logarithmic gap at each end so neither boundary touches a singular-value curve. The shaded band is an illustrative interior selection, not the full admissible range, a confidence interval, or a per-trial recovery guarantee. A threshold shared by both targets must lie in their full interval intersection at the chosen L. Tau uses normalized singular values (the raw SVD cutoff is L*tau), and is separate from the peak-search `threshold`. Add `--tau 0.1` to the multiplicity replot command, or set `MULTIPLICITY_TAU` in the notebook, to overlay a fixed threshold; red crosses mark values outside the full admissible interval.
+
+The original three experiment runs remain archived under `results/old/{eigenvalue,multiplicity,observable}/`. The subsequent eigenvalue and multiplicity runs with p_tail=0.1 are archived separately under `results/old/2026-10-12-ptail-0.1/`. Their default output directories are empty and ready for fresh runs: keep `RUN_NAME = None` and set the desired experiment actions to `"run"`. Archived results cannot be resumed with changed settings or source code.
 
 ## Saved results and replotting
 
-Tracked results are under `results/paper/`. Each experiment directory contains:
+New results use the three experiment directories directly under `results/`; `results/old/` remains ignored by Git. Each completed experiment directory contains:
 
 - `metadata.json`: resolved configuration, seed, software versions, and source hashes.
 - `trials.csv`: individual trial results, sampled evolution costs, and diagnostics.
@@ -85,14 +89,14 @@ Tracked results are under `results/paper/`. Each experiment directory contains:
 Regenerate figures without simulation:
 
 ```bash
-python -m qfames.plotting results/paper/eigenvalue
-python -m qfames.plotting results/paper/multiplicity
-python -m qfames.plotting results/paper/observable
+python -m qfames.plotting results/eigenvalue
+python -m qfames.plotting results/multiplicity
+python -m qfames.plotting results/observable
 ```
 
 The command-line plotter reads saved metadata and summaries rather than current configurations. Multiplicity also reads `trials.csv` for the s4/L standard-error bars. Reference lines show prescribed slopes, not fitted regressions. Figure styling is defined in `qfames/plotting.py`.
 
-The saved observable run retains metadata and CSV files from an earlier code version. It supports replotting, but `--resume` rejects its source-hash mismatch; use a new output directory for fresh simulations.
+The archived observable run in `results/old/observable/` retains metadata and CSV files from an earlier code version. It supports replotting, but `--resume` rejects its source-hash mismatch; use a new output directory for fresh simulations.
 
 ## Sampling and cost conventions
 
@@ -106,7 +110,9 @@ $T$ is the filter scale; the sampled maximum time is recorded separately. Correl
 
 Costs sum the absolute sampled evolution times for every state pair, including repeated shared times. Observable costs include spectral-data acquisition and both observable evolution legs. Cost plots use mean sampled cost and the empirical 90th-percentile error at each configuration.
 
-Eigenvalue and multiplicity use a small coherent tail with normalized weight 0.001. Observable uses deterministic initial states and a known target multiplicity. These are controlled Gaussian-noise simulations at fixed T; quick checks and reference slopes do not establish asymptotic scaling.
+Eigenvalue and multiplicity use a small coherent tail with normalized weight 0.05. Observable uses deterministic initial states and a known target multiplicity. These are controlled Gaussian-noise simulations at fixed T; quick checks and reference slopes do not establish asymptotic scaling.
+
+For eigenvalue estimation at T=200 with the tail at 0.01, the untruncated Gaussian population-filter approximation predicts a lower-peak shift of about 2.0e-5 for p_tail=0.05, compared with 4.2e-5 at 0.1 and 3.7e-7 at the original 0.001. Thus 0.05 reduces tail bias, but can still flatten the large-L independent-sampling curves; it is not expected to fully reproduce the original small-tail accuracy. These are deterministic bias estimates, not new Monte Carlo results.
 
 ## Repository layout
 
@@ -115,7 +121,10 @@ qfames/                       # Sampling, estimators, and plotting
 experiments/                  # Experiment entry points and trial execution
 configs/                      # JSON experiment settings
 tests/                        # Numerical and experiment regression checks
-results/paper/                # Saved experiment data and figures
+results/eigenvalue/           # New eigenvalue results
+results/multiplicity/         # New multiplicity results
+results/observable/           # New observable results
+results/old/                  # Archived previous runs (ignored)
 run_experiments.ipynb         # Notebook entry point
 requirements.txt              # Core dependencies
 requirements-notebook.txt     # Notebook dependencies

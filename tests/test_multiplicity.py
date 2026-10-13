@@ -1,4 +1,4 @@
-"""Regression checks for exact-center multiplicity evaluation."""
+"""Regression checks for estimated-center multiplicity evaluation."""
 import json
 import io
 from pathlib import Path
@@ -8,10 +8,35 @@ from unittest.mock import patch
 import numpy as np
 from experiments.common import run_trial
 from qfames.core import (Samples, initial_states, spectral_samples, filtered_matrix)
-from qfames.plotting import multiplicity_plot, multiplicity_standard_errors
+from qfames.plotting import multiplicity_plot, multiplicity_standard_errors, threshold_range
 
 
 class MultiplicityTests(unittest.TestCase):
+    def test_threshold_inset_band_and_fixed_value(self):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        try:
+            x = np.array([5., 10., 20., 40.])
+            lower = np.array([.01, .02, .03, np.nan])
+            upper = np.array([.04, .08, .03, .09])
+            threshold_range(ax, x, lower, upper)
+            low = ax.lines[0].get_ydata()
+            high = ax.lines[1].get_ydata()
+            self.assertTrue(np.all(lower[:2] < low[:2]))
+            self.assertTrue(np.all(low[:2] < high[:2]))
+            self.assertTrue(np.all(high[:2] < upper[:2]))
+            np.testing.assert_allclose(np.log(low[:2]/lower[:2])/np.log(upper[:2]/lower[:2]), .15)
+            self.assertTrue(np.all(np.isnan(low[2:])))
+            self.assertEqual(ax.lines[0].get_linestyle(), '--')
+            self.assertEqual(ax.lines[1].get_linestyle(), '--')
+            self.assertEqual(len(ax.collections), 1)
+            handles = threshold_range(ax, x, lower, upper, tau=.04)
+            np.testing.assert_allclose(handles[-1].get_ydata(), [.04]*4)
+            # The true upper endpoint is excluded, not the inset boundary.
+            np.testing.assert_array_equal(ax.lines[-1].get_xdata(), [5.])
+        finally:
+            plt.close(fig)
+
     def test_saved_trial_sem_is_not_standard_deviation(self):
         fields = [f'sv_{c}_{k}' for c in range(2) for k in range(1, 6)]
         csv_text = 'scheme,N,L,' + ','.join(fields) + '\n'
@@ -27,16 +52,17 @@ class MultiplicityTests(unittest.TestCase):
                 self.assertAlmostEqual(row[field + '_sem'], expected)
                 self.assertEqual(row[field], 123.)
 
-    def test_exact_centers_without_peak_search(self):
+    def test_svd_uses_estimated_peaks(self):
         cfg = json.loads(Path('configs/multiplicity.json').read_text())
         matrix = np.diag([10., 8., 6., 4., 2.]).astype(complex)
         data = Samples(matrix[..., None], np.zeros((5, 5, 1)), 0., 0.)
-        with patch('experiments.common.find_peaks', side_effect=AssertionError('peak search called')), patch('experiments.common.spectral_samples', return_value=data):
+        with patch('experiments.common.find_peaks', return_value=np.array([.001, .019])), patch('experiments.common.spectral_samples', return_value=data), patch('experiments.common.filtered_matrix', return_value=matrix) as filtered:
             row = run_trial(('multiplicity', cfg, 'independent', 500, 5, 0))
-        self.assertEqual(row['evaluation_mode'], 'exact_cluster_centers')
-        for c, theta in enumerate([0., .02]):
+        self.assertEqual(row['evaluation_mode'], 'estimated_cluster_centers')
+        for c, theta in enumerate([.001, .019]):
             self.assertEqual(row[f'evaluation_theta_{c}'], theta)
-            self.assertEqual(row[f'peak_{c}'], '')
+            self.assertEqual(row[f'peak_{c}'], theta)
+            self.assertEqual(filtered.call_args_list[c].args[1], theta)
             np.testing.assert_allclose([row[f'sv_{c}_{k}'] for k in range(1, 6)], [2, 1.6, 1.2, .8, .4])
 
     def test_quick_skips_reference_and_keeps_points(self):
@@ -49,7 +75,7 @@ class MultiplicityTests(unittest.TestCase):
             for ax in fig.axes:
                 for line in ax.lines[:5]:
                     np.testing.assert_array_equal(line.get_xdata(), [5,8,12])
-                self.assertEqual(len(ax.lines), 5)
+                self.assertEqual(sum(line.get_label().startswith("s") for line in ax.lines), 5)
                 self.assertIn('multiplicity', ax.get_title())
             import matplotlib.pyplot as plt
             plt.close(fig)
@@ -78,7 +104,7 @@ class MultiplicityTests(unittest.TestCase):
                         k = int(line.get_label()[1])
                         np.testing.assert_allclose(line.get_ydata(), factor*(6-k)/line.get_xdata())
                     if scheme == 'shared':
-                        self.assertEqual(len(ax.lines), 5)
+                        self.assertEqual(sum(line.get_label().startswith("s") for line in ax.lines), 5)
                         self.assertIsNone(ax.get_legend())
                         continue
                     ref = next(line for line in ax.lines if line.get_linestyle() == ':')
@@ -144,7 +170,7 @@ class MultiplicityTests(unittest.TestCase):
                     self.assertAlmostEqual(row[field], np.mean([r[field] for r in group]))
             (path / 'metadata.json').write_text(json.dumps(dict(
                 experiment='multiplicity', config=cfg, quick=True,
-                evaluation_mode='exact_cluster_centers')))
+                evaluation_mode='estimated_cluster_centers')))
             plot_run(path)
             self.assertEqual(len(list((path / 'figures').glob('*.png'))), 2)
             self.assertEqual(len(list((path / 'figures').glob('*.pdf'))), 2)

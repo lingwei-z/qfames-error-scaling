@@ -59,10 +59,10 @@
   "quick": false,
   "code_sha256": {
     "qfames\\__init__.py": "16dab917644542f6268033fe17b129b1088f695e5d42d7e2761c76f085e97690",
-    "qfames\\core.py": "0dfd017102fd63a1e91b61a28af224b35c21718a40dc9795b9170b56e4abd09d",
-    "qfames\\plotting.py": "c962ea4e99e36eb28abbbaff8a10139cffa616222614081a8b513b1350dbd641",
+    "qfames\\core.py": "bac19a6d73bc471b23f8b988a7ca121a000b23efce1ec55da0eee5897a8c9dda",
+    "qfames\\plotting.py": "b1a1093682c24713081b325cd0ee246b9582012e16a098c2f53c7e48d2733177",
     "experiments\\__init__.py": "3dab48845ee0c7707334480eaf7ff37b3686c07be94de94e3eb0344606cf98a2",
-    "experiments\\common.py": "947442abd7d3959282ae4d1e0961354d72428fc24985c8e24683d4abb0bef8b9",
+    "experiments\\common.py": "d7db451751ae440585c46a09a0f79972c56e10cc15d319912bdc5db182b3278a",
     "experiments\\eigenvalue_scaling.py": "83f94c4ace6fe152bc24fa09b4f33240f95c879974671357eb6012f9d5fbe2d8",
     "experiments\\multiplicity_scaling.py": "ec8ee0eef75e75451dafe34b07efe17b3b694997bf700afd64f0fc27ccde00e7",
     "experiments\\observable_scaling.py": "fd6a787b92a957d0dce5e75cbaaaa3e89ba29a00f183a586344c0d18b0ee53fa"
