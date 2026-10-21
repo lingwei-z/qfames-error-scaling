@@ -1,21 +1,22 @@
 {
   "eigenvalues": [0.0, 0.0, 0.1],
   "observable": [
-    [1.5, 0.5, 0.0],
-    [0.5, 1.5, 0.0],
-    [0.0, 0.0, 0.0]
+    [0.75, 0.25, 0.0],
+    [0.25, 0.75, 0.0],
+    [0.0, 0.0, 1.0]
   ],
-  "observable_targets": [1.0, 2.0],
+  "observable_targets": [0.5, 1.0],
   "multiplicity": 2,
-  "L_values": [3, 5, 8, 12, 16, 24, 32, 50],
-  "N_values": [200, 500, 1000],
-  "fixed_N": 500,
+  "L_values": [8, 12, 16, 24, 32, 50],
+  "N_values": [1000, 2000, 4000],
+  "fixed_N": 2000,
   "T": 50.0,
   "sigma": 6.0,
   "search_bounds": [-0.04, 0.04],
-  "noise_std": 0.015,
-  "observable_noise_std": 0.015,
+  "noise_std": 1.0,
+  "observable_noise_std": 1.0,
   "chunk_size": 256,
   "trials": 100,
-  "seed": 42
+  "seed": 42,
+  "state_weights": [0.175, 0.175, 0.65]
 }

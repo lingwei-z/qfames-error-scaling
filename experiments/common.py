@@ -28,6 +28,22 @@ BASE_FIELDS = ["scheme", "N", "L", "trial", "status", "error", "peak_error",
 SV_FIELDS = [f"sv_{cluster}_{k}" for cluster in range(2) for k in range(1, 6)]
 FIELDS = BASE_FIELDS + SV_FIELDS
 EVALUATION_FIELDS = ["evaluation_mode", "evaluation_theta_0", "evaluation_theta_1"]
+COST_CONVENTION_VERSION = 2
+COST_CONVENTION = (
+    "absolute sampled evolution time; two tests (real and imaginary) per complex datum; "
+    "shared times counted for every state pair; observable cost includes both legs"
+)
+
+
+def source_record():
+    """Keep portable source hashes and their source text inside existing metadata."""
+    sources = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
+               for folder in ("qfames", "experiments")
+               for p in sorted((ROOT / folder).glob("*.py"))}
+    return dict(code_sha256={name: hashlib.sha256(text.encode("utf-8")).hexdigest()
+                             for name, text in sources.items()},
+                source_snapshot=sources,
+                source_hash_convention="SHA256 of UTF-8 Python source with LF newlines and POSIX relative paths")
 
 
 def run_trial(job):
@@ -44,7 +60,7 @@ def run_trial(job):
     spectrum = np.array(cfg["eigenvalues"])
     centers = np.unique(spectrum if name == "observable" else cfg["dominant_eigenvalues"])
     if name == "observable":
-        phi, psi = observable_initial_states(L, L)
+        phi, psi = observable_initial_states(L, L, cfg.get("state_weights"))
     else:
         phi, psi = initial_states(state_rng, len(cfg["dominant_eigenvalues"]), L, L,
                                   replicated=name == "eigenvalue",
@@ -195,11 +211,9 @@ def main(name):
     output.mkdir(parents=True, exist_ok=True)
     metadata_path = output / "metadata.json"
     raw_path = output / "trials.csv"
-    hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
-              for folder in ["qfames", "experiments"] for p in sorted((ROOT / folder).glob("*.py"))}
-    metadata = dict(experiment=name, config=cfg, quick=args.quick, code_sha256=hashes,
+    metadata = dict(experiment=name, config=cfg, quick=args.quick, **source_record(),
                     python=platform.python_version(), numpy=np.__version__, scipy=scipy.__version__,
-                    cost_convention="absolute sampled evolution time; unit per complex datum",
+                    cost_convention=COST_CONVENTION, cost_convention_version=COST_CONVENTION_VERSION,
                     workers=args.workers)
     fields = FIELDS + EVALUATION_FIELDS if name == "multiplicity" else FIELDS
     if name == "multiplicity":
@@ -218,12 +232,18 @@ def main(name):
         if not args.resume or not metadata_path.exists() or not raw_path.exists():
             parser.error("Output exists. Use --resume for the same settings, or choose a new --output.")
         old = json.loads(metadata_path.read_text())
-        if any(old[k] != metadata[k] for k in ["experiment", "config", "code_sha256", "numpy", "scipy"]):
-            parser.error("Resume requires unchanged settings, source code, NumPy, and SciPy.")
+        if (old.get("cost_convention_version") != COST_CONVENTION_VERSION
+                or "cost_correction" in old.get("postprocessing", {})
+                or "source_snapshot" not in old):
+            parser.error("Historical results cannot be resumed. Use --plot-only, or a new --output to simulate.")
+        if any(old.get(k) != metadata[k] for k in
+               ("experiment", "config", "code_sha256", "source_snapshot", "source_hash_convention",
+                "python", "numpy", "scipy")):
+            parser.error("Resume requires unchanged settings, source code, Python, NumPy, and SciPy.")
         with raw_path.open(newline="") as stream:
             completed = {key(row) for row in csv.DictReader(stream)}
     else:
-        metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
+        metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
         with raw_path.open("w", newline="") as stream:
             csv.DictWriter(stream, fieldnames=fields).writeheader()
     schemes = ["independent", "shared"]

@@ -1,6 +1,6 @@
 # QFAMES: error and cost scaling
 
-Numerical experiments for **Quantum Spectral Estimation with Multiple Initial States: Improved Error and Cost Scaling**, by Lingwei Zhang and Zhiyan Ding.
+Numerical experiments for **Quantum Spectral Estimation with Multiple Initial States: Improved Error and Cost Scaling**, by Lingwei Zhang and Zhiyan Ding. [arXiv:2610.20482](https://arxiv.org/abs/2610.20482).
 
 The three experiments compare independent and shared time sampling for eigenvalue estimation, multiplicity detection, and observable estimation.
 

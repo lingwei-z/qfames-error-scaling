@@ -29,9 +29,13 @@ def sample_times(rng, size, T, sigma):
 
 
 def time_cost(times, L, R):
-    """Count every state-pair evolution, including repeated shared times."""
+    """Count separate real/imaginary tests for every state pair and time.
+
+    Shared times still require both tests for each of the L * R state pairs.
+    The two tests double total evolution time, but not circuit depth.
+    """
     factor = L * R if times.ndim == 1 else 1
-    return float(factor * np.abs(times).sum())
+    return float(2 * factor * np.abs(times).sum())
 
 
 def initial_states(rng, dimension, L, R, replicated=False, min_overlap=0.5):
@@ -56,11 +60,18 @@ def initial_states(rng, dimension, L, R, replicated=False, min_overlap=0.5):
     return np.asarray(rows[:L]), np.asarray(rows[L:])
 
 
-def observable_initial_states(L, R):
+def observable_initial_states(L, R, state_weights=None):
     """Deterministic frames with orthogonal target columns and fixed cross-cluster correlation."""
+    if state_weights is not None:
+        state_weights = np.asarray(state_weights, dtype=float)
+        if (state_weights.shape != (3,) or not np.all(np.isfinite(state_weights))
+                or np.any(state_weights < 0)
+                or not np.isclose(state_weights.sum(), 1, rtol=0, atol=1e-12)):
+            raise ValueError("Observable state weights must be three nonnegative values summing to one")
     def frame(n):
         phase = np.exp(2j * np.pi * np.arange(n) / n)
-        return np.column_stack([np.ones(n), phase, np.ones(n)]) / np.sqrt(3)
+        columns = np.column_stack([np.ones(n), phase, np.ones(n)])
+        return columns / np.sqrt(3) if state_weights is None else columns * np.sqrt(state_weights)
     return frame(L), frame(R)
 
 
@@ -147,7 +158,7 @@ def find_peaks(samples, T, count, bounds, grid_step=0.4, alpha=2.0,
 
 def observable_filtered(rng, eigenvalues, phi, psi, observable, N, T, sigma,
                         scheme, noise_std, theta, chunk_size=256):
-    """Stream G^O and count both legs of each observable circuit.
+    """Stream G^O and count both legs of each real/imaginary test circuit.
 
     The two times are independent draws at scale T/sqrt(2). In the shared
     scheme each time pair is reused across (l,r), but noise remains independent.
