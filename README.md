@@ -35,6 +35,8 @@ python -m experiments.observable_scaling --workers 2 --resume
 
 Add `--quick` for a smoke test or `--output results/my-run` for a separate run. Resume requires compatible settings, source code, and NumPy/SciPy versions. Avoid running two jobs against the same output directory.
 
+The bundled eigenvalue and multiplicity results have historical metadata and cannot be resumed with the current code; use the plotting commands below or the notebook's `"plot"`/`"view"` actions to inspect them.
+
 To regenerate figures without simulation:
 
 ```bash

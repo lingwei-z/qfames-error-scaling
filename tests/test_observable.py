@@ -20,7 +20,7 @@ class ObservableTests(unittest.TestCase):
         for scheme in ['shared','independent']:
             d=spectral_samples(np.random.default_rng(1),[0,0,.1],phi,psi,7,50,6,scheme,.015)
             self.assertEqual(d.times.shape,(7,) if scheme=='shared' else (3,5,7))
-            self.assertAlmostEqual(d.total_time,np.abs(d.times).sum()*(15 if scheme=='shared' else 1))
+            self.assertAlmostEqual(d.total_time,2*np.abs(d.times).sum()*(15 if scheme=='shared' else 1))
             if scheme=='independent': self.assertFalse(np.array_equal(d.times[0,0],d.times[1,0]))
             from qfames.core import sample_times
             with patch('qfames.core.sample_times', wraps=sample_times) as sample:

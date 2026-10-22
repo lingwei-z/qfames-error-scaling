@@ -12,8 +12,8 @@ from qfames.core import (Samples, filtered_matrix, initial_states, matching_erro
 class NumericsTests(unittest.TestCase):
     def test_shared_cost_counts_all_state_pairs(self):
         times = np.array([-2.0, 1.0, -3.0])
-        self.assertEqual(time_cost(times, 2, 4), 48)
-        self.assertEqual(time_cost(np.broadcast_to(times, (2, 4, 3)), 2, 4), 48)
+        self.assertEqual(time_cost(times, 2, 4), 96)
+        self.assertEqual(time_cost(np.broadcast_to(times, (2, 4, 3)), 2, 4), 96)
 
     def test_shared_and_independent_filter_shapes(self):
         rng = np.random.default_rng(1)
